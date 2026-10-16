@@ -62,7 +62,7 @@ p { max-width: 68ch; }
 .product-image { height: 480px; display: flex; align-items: center; justify-content: center; }
 .product-image img { max-height: 100%; width: auto; border-radius: var(--radius-control); box-shadow: var(--shadow-product); object-fit: contain; }
 .product-stage figcaption { margin-top: var(--space-md); display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); font-size: .8125rem; }
-.product-stage figcaption span:last-child { white-space: nowrap; }
+.product-stage figcaption span:last-child { max-width: 28ch; text-align: right; }
 /* All supported tools remain visible below the growth guide. */
 .providers { border-top: 1px solid var(--color-rule); }
 .provider-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: var(--space-xs) var(--space-lg); margin: var(--space-lg) 0 0; padding: 0; list-style: none; }
@@ -105,6 +105,9 @@ p { max-width: 68ch; }
 .all-features > summary { min-height: 64px; padding-block: var(--space-sm); font-weight: 600; }
 .feature-list { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: var(--space-lg) var(--space-xl); padding-bottom: var(--space-xl); }
 .feature-list article p { margin-top: var(--space-xs); font-size: .9375rem; color: var(--color-muted); overflow-wrap: anywhere; }
+.feature-list figure { margin-top: var(--space-md); }
+.feature-list figure img { width: 100%; border-radius: var(--radius-control); }
+.feature-list figcaption { margin-top: var(--space-xs); color: var(--color-muted); font-size: .8125rem; }
 .companion { background: var(--color-soft); }
 .companion-layout { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr); gap: var(--space-3xl); align-items: center; }
 .journey { padding: 0; margin: var(--space-lg) 0 0; list-style: none; counter-reset: journey; }

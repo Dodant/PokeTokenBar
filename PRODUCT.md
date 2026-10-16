@@ -21,11 +21,16 @@ People using supported AI coding tools on a Mac. The installation and feature de
 - Requires macOS 14 or later; Apple Silicon and Intel are supported.
 - Free, open-source, unofficial and non-commercial fan project. MIT covers the project's own source code.
 - Install through `brew install --cask chattymin/tap/poke-token-bar` or the `PokeTokenBar.zip` GitHub release asset. Direct installation requires handling macOS Gatekeeper because the app is ad-hoc/self-signed. Homebrew's cask removes the quarantine attribute.
-- Supported providers: Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, Hermes Agent, Cursor, Grok CLI, Copilot CLI, Kiro CLI, Pi Agent, omp, Aside.
+- Supported providers: Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, Hermes Agent, Cursor, Grok CLI, Copilot CLI, Kiro CLI, Pi Agent, omp, Aside, Kimi Code.
 - Official usage limits are available for Claude, Codex and Antigravity. Do not imply official limits for every provider.
 - Usage logs are not uploaded. The app makes network requests for provider usage/limits, Pokémon data and sprites, service status and updates. Do not claim it is completely offline.
 - Companions hatch, evolve and graduate into a collection. Growth difficulty is adjustable. Rare Candy and the token shop affect progress; a fixed completion time is not a promise.
-- The website supports English, Korean and Japanese. Website language support is separate from app language support.
+- The website supports English, Korean and Japanese. The app supports eight UI languages, including Russian; website language support is separate.
+- Supported Gen 1–5 forms are retained per individual through evolution, saving and export. Form-specific types, stats, abilities and moves are not modeled: metadata uses the default form.
+- Rare Candy supports quantity selection and an evolution/graduation preview with carryover; the Shop shows quantity and total price.
+- Monthly daily bars use a fixed full-month axis, stacking by provider with a legend when at least two providers have usage in the month. Hover shows total/per-provider usage, with cost when enabled; idle days retain weekly/monthly history.
+- Recaps cover past weeks/months/years with exact-count hovers and a shortcut to the current period.
+- Automatic backup history starts collapsed; manual backup creation remains visible.
 
 ## Stack
 
@@ -34,8 +39,9 @@ Existing static HTML/CSS/JavaScript on the orphan `gh-pages` branch, served by G
 ## Evidence on Hand
 
 - Main branch README files, native source and release documentation are the product authorities.
-- `assets/` contains the existing app icon and product demonstration images. Release documentation identifies these as HTML-rendered UI illustrations, not live app captures; label them as example screens.
-- Existing demos are in English. Localized surrounding copy must not imply the image itself changed language.
+- Nineteen 2.5.6 Home/gallery PNGs are byte-identical native production-view renders with isolated sample data. They are not live user usage. Capture source/tree, exact view scope and fallbacks are in `assets/README-release-2.5.6.md`.
+- Forms, Bag, Shop, difficulty, daily trend and recap samples have EN/KO/JA images selected with the page language. The common Home image stays English and says so in all three languages.
+- The retained quota, pace, collection and desktop-pet demonstrations are English examples; their captions remain separate from native sample labels.
 - Download counts are requests, including upgrades and repeats. They are not unique users and are omitted from public social proof.
 - No testimonials, customer logos, performance benchmarks or conversion figures have been supplied.
 

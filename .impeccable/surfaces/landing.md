@@ -10,11 +10,11 @@ The existing black app icon and red identity anchor a neutral, nearly white canv
 
 ## STORY
 
-Product and example screen → installation steps and direct ZIP alternative → usage details → companion lifecycle and desktop demo → visible numerical field guide → all 13 supported tools with linked icons and names → practical questions → source and fan attribution. Existing #top, #features, #companion, #guide and #install anchors stay available. Detailed features use native disclosure controls. The growth guide is always expanded; its topic tabs remain. All provider links are visible without a disclosure.
+Product and example screen → installation steps and direct ZIP alternative → usage details → companion lifecycle and desktop demo → visible numerical field guide → all 14 supported tools with linked icons and names → practical questions → source and fan attribution. Existing #top, #features, #companion, #guide and #install anchors stay available. Detailed features use native disclosure controls. The growth guide is always expanded; its topic tabs remain. All provider links are visible without a disclosure.
 
 ## FIRST VIEWPORT
 
-Left-aligned title, short product explanation, installation anchor, free/macOS compatibility line. The opposite column holds the existing example popover at a readable scale. On phones the same decision and installation link precede the illustration. Captions explicitly identify illustrative screens and their English language.
+Left-aligned title, short product explanation, installation anchor, free/macOS compatibility line. The opposite column holds the existing example popover at a readable scale. On phones the same decision and installation link precede the illustration. The Home caption identifies a native production UI render with sample data in English. Other captions distinguish localized native samples from the retained English illustrations.
 
 ## FORM
 

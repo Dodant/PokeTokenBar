@@ -64,7 +64,16 @@ async function capture(page,name,full=false) {
       await p.locator('#themeBtn').click();
       assert.equal(await p.locator('html').getAttribute('data-theme'),'dark');
       await layout(p);
-      if([375,1440].includes(width)) await capture(p,`${lang}-${width}-dark`);
+      if([375,1440].includes(width)) {
+       await capture(p,`${lang}-${width}-dark`);
+       await p.locator('#themeBtn').click();
+       await capture(p,`${lang}-${width}-expanded`,true);
+       const native = await p.locator('[data-i18n-image]').evaluateAll(images => images.map(i=>({src:i.getAttribute('src'),loaded:i.complete&&i.naturalWidth>0,width:i.naturalWidth,height:i.naturalHeight,caption:i.closest('figure').querySelector('figcaption').textContent})));
+       assert.equal(native.length,6);
+       const suffix=lang==='en'?'':'-'+lang;
+       for(const i of native) {assert.ok(i.loaded,JSON.stringify(i));assert.ok(i.src.endsWith(suffix+'.png'),JSON.stringify(i));assert.equal(i.width,720);assert.ok(i.caption.trim());}
+       await layout(p);
+      }
       assert.deepEqual(errors,[]);
      }finally{await p.close();}
     });
@@ -152,14 +161,14 @@ async function capture(page,name,full=false) {
     assert.equal(await p.locator('html').getAttribute('lang'),'ja');assert.equal(await p.locator('html').getAttribute('data-theme'),'dark');
    }finally{await p.close();}
   });
-  await test('growth guide is expanded; 13 linked icons follow it in both themes',async()=>{
+  await test('growth guide is expanded; 14 linked icons follow it in both themes',async()=>{
    const p=await browser.newPage({viewport:{width:375,height:812}});
    try {
     await p.goto(url);
     assert.equal(await p.locator('details.guide-body').count(),0);
     assert.equal(await p.locator('#gtab-growth').isVisible(),true);
     assert.equal(await p.locator('#providers').evaluate(x=>x.previousElementSibling.id),'guide');
-    const links=p.locator('.provider-link');assert.equal(await links.count(),13);
+    const links=p.locator('.provider-link');assert.equal(await links.count(),14);
     for(const theme of ['light','dark']) {
      if(theme==='dark')await p.locator('#themeBtn').click();
      await p.locator('#providers').scrollIntoViewIfNeeded();
@@ -169,6 +178,35 @@ async function capture(page,name,full=false) {
     }
     await p.route('https://claude.com/**',r=>r.fulfill({status:200,body:'Official destination intercepted for navigation test'}));
     await links.first().click();await p.waitForURL('https://claude.com/product/claude-code');
+   }finally{await p.close();}
+  });
+  await test('language switching swaps native samples; fallback and translation keys agree',async()=>{
+   const p=await browser.newPage({reducedMotion:'reduce'});
+   try {
+    await p.goto(url);
+    assert.deepEqual(await p.evaluate(()=>Object.keys(I18N.en).filter(k=>!(k in I18N.ko)||!(k in I18N.ja))),[]);
+    for(const lang of ['ko','ja','en']) {
+     await p.locator('#language').selectOption(lang);
+     assert.deepEqual(await p.locator('[data-i18n-alt]').evaluateAll(es=>es.filter(e=>e.alt!==I18N[document.documentElement.lang][e.dataset.i18nAlt]).map(e=>e.dataset.i18nAlt)),[]);
+     assert.deepEqual(await p.locator('[data-i18n]').evaluateAll(es=>es.filter(e=>e.textContent.replace(/\n/g,'')!==I18N[document.documentElement.lang][e.dataset.i18n].replace(/\n/g,'')).map(e=>e.dataset.i18n)),[]);
+     const suffix=lang==='en'?'':'-'+lang;
+     for(const src of await p.locator('[data-i18n-image]').evaluateAll(es=>es.map(e=>e.getAttribute('src'))))assert.ok(src.endsWith(suffix+'.png'));
+     assert.equal(await p.locator('.product-image img').getAttribute('src'),'assets/screenshot-home.png');
+    }
+    assert.equal(await p.locator('.provider-link').filter({hasText:'Kimi Code'}).getAttribute('href'),'https://www.kimi.com/code');
+   }finally{await p.close();}
+  });
+  await test('growth animation play, pause and reduced motion remain available',async()=>{
+   const p=await browser.newPage({reducedMotion:'reduce'});
+   try {
+    await p.goto(url);
+    assert.equal(await p.locator('#growth-motion').getAttribute('aria-pressed'),'false');
+    await p.locator('#growth-motion').click();
+    assert.equal(await p.locator('#growth-motion').getAttribute('aria-pressed'),'true');
+    for(const src of await p.locator('[data-growth-sprite]').evaluateAll(es=>es.map(e=>e.getAttribute('src'))))assert.match(src,/\.gif$/);
+    await p.locator('#growth-motion').click();
+    assert.equal(await p.locator('#growth-motion').getAttribute('aria-pressed'),'false');
+    for(const src of await p.locator('[data-growth-sprite]').evaluateAll(es=>es.map(e=>e.getAttribute('src'))))assert.match(src,/\.png$/);
    }finally{await p.close();}
   });
   await test('every same-page link has a target and ZIP uses latest release',async()=>{

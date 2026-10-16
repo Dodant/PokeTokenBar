@@ -43,11 +43,13 @@ The official hook intentionally becomes a no-op if its launcher is missing. Our 
 - `.impeccable/surfaces/landing.md`: this page's goal, sequence and direction.
 - `docs/design-references.md`: ten inspected references, tool selection and post-build critique.
 
-`index.html` includes readable English fallback content. `app.js` applies the English/Korean/Japanese dictionaries using text nodes, plus separately translated image descriptions and ARIA labels. Keep the fallback copy and dictionaries aligned when changing wording.
+`index.html` includes readable English fallback content. `app.js` applies the English/Korean/Japanese dictionaries using text nodes, plus separately translated image descriptions and ARIA labels. Six native sample image families switch to matching EN/KO/JA files; the shared Home sample stays English. Keep the fallback copy and dictionaries aligned when changing wording.
 
 ## Assets
 
-Existing screenshots are product UI illustrations produced by the release workflow, not newly captured native-app screenshots. Captions label them as examples. `floating-pet-still.png` is the first frame of the existing `floating-pet.gif`; animation is user initiated. The local Bricolage Grotesque font is distributed under `assets/fonts/OFL.txt`, from the [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/bricolagegrotesque).
+The 2.5.6 Home, forms, Bag, Shop, difficulty, daily trend and recap images are native production SwiftUI/AppKit renders with isolated sample data. Six families have English/Korean/Japanese variants; Home is English in every website language. Captions distinguish these from the retained English quota, pace, collection and desktop-pet examples. See [the capture provenance](assets/README-release-2.5.6.md) for source revisions, scroll-region scope and offline fallbacks.
+
+`floating-pet-still.png` is the first frame of the existing `floating-pet.gif`; its animation is user initiated. The growth sequence keeps its separate play/pause control and reduced-motion preference. The local Bricolage Grotesque font is distributed under `assets/fonts/OFL.txt`, from the [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/bricolagegrotesque). Kimi Code’s icon is the official site’s [public app icon](https://www.kimi.com/pwa-192.png), retrieved on 2026-10-16; other provider icons are preserved from the redesign.
 
 ## Publishing
 
