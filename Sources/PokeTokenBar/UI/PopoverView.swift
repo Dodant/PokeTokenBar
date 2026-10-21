@@ -87,7 +87,6 @@ final class PopoverNavigation {
 struct PopoverView: View {
     @Environment(UsageStore.self) private var store
     @Environment(CompanionStore.self) private var companion
-    @Environment(UpdateChecker.self) private var updater
     @Environment(PopoverNavigation.self) private var nav
 
     private var l: L { companion.l }
@@ -109,7 +108,6 @@ struct PopoverView: View {
                 )
                     .environment(store)
                     .environment(companion)
-                    .environment(updater)
             } else if nav.showingRecap {
                 RecapScreen(store: store, companion: companion) { nav.showingRecap = false }
             } else {
@@ -120,36 +118,9 @@ struct PopoverView: View {
         .environment(\.locale, companion.language.displayLocale)
     }
 
-    @ViewBuilder
-    private var updateBanner: some View {
-        if let update = updater.available, store.updateNotificationsEnabled {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(l.updateAvailable(update.version, current: updater.currentVersion))
-                    .font(.caption)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 8) {
-                    Spacer()
-                    if updater.isUpdating {
-                        Text(l.updating).font(.caption2).foregroundStyle(.secondary)
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Button(l.skipThisVersion) { updater.skipCurrent() }
-                            .buttonStyle(.borderless).controlSize(.small).foregroundStyle(.secondary)
-                        Button(l.updateButton) { updater.applyUpdate() }
-                            .buttonStyle(.borderedProminent).controlSize(.small)
-                    }
-                }
-            }
-            .padding(8)
-            .background(Color.accentColor.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-        }
-    }
-
     private var mainContent: some View {
         @Bindable var nav = nav
         return VStack(alignment: .leading, spacing: 12) {
-            updateBanner
             Picker("", selection: $nav.tab) {
                 Text(l.home).tag(PopoverTab.home)
                 Text(l.shop).tag(PopoverTab.shop)

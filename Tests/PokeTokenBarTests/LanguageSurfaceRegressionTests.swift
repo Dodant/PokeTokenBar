@@ -17,7 +17,7 @@ final class LanguageSurfaceRegressionTests: XCTestCase {
             let stamp = SettingsView.exportedAtText(date, language: language)
             XCTAssertEqual(stamp, formatter.string(from: date))
             let labels = [l.tokenInput, l.tokenOutput, l.tokenCacheWrite, l.tokenCacheRead,
-                          l.website, l.sponsor, l.evolutionScrollPrevious, l.evolutionScrollNext,
+                          l.evolutionScrollPrevious, l.evolutionScrollNext,
                           l.moveMethod(.init(method: "light-ball-egg", level: 0)),
                           l.moveMethod(.init(method: "form-change", level: 0))]
             XCTAssertFalse(labels.contains(where: { $0.isEmpty }))
@@ -56,8 +56,6 @@ final class LanguageSurfaceRegressionTests: XCTestCase {
         let settings = try String(contentsOf: root.appendingPathComponent("Sources/PokeTokenBar/UI/SettingsView.swift"), encoding: .utf8)
         XCTAssertFalse(settings.contains("Picker(\"\""), "Hidden visual labels must retain accessible localized names")
         XCTAssertFalse(settings.contains("Toggle(\"\""), "Hidden visual labels must retain accessible localized names")
-        XCTAssertFalse(settings.contains("footerLink(\"Web\""))
-        XCTAssertFalse(settings.contains("footerLink(\"♥ Sponsor\""))
         let popover = try String(contentsOf: root.appendingPathComponent("Sources/PokeTokenBar/UI/PopoverView.swift"), encoding: .utf8)
         for label in ["in", "out", "cache w", "cache r"] {
             XCTAssertFalse(popover.contains("tokenTypeLabel(\"\(label)\""))

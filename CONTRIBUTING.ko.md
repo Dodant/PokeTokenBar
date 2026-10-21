@@ -10,7 +10,7 @@
 
 ## 사전 요구사항
 
-- **macOS 14 (Sonoma) 이상**
+- **macOS 26 (Tahoe) 이상**
 - **Swift 6 툴체인** (Xcode 16 이상) — `Package.swift`가 요구
   (`swift-tools-version: 6.0`)
 

@@ -10,7 +10,7 @@ Please read the short sections below before opening a pull request.
 
 ## Prerequisites
 
-- **macOS 14 (Sonoma) or newer**
+- **macOS 26 (Tahoe) or newer**
 - **Swift 6 toolchain** (Xcode 16 or newer) — required by `Package.swift`
   (`swift-tools-version: 6.0`)
 

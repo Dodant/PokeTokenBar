@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Environment(UsageStore.self) private var store
     @Environment(CompanionStore.self) private var companion
-    @Environment(UpdateChecker.self) private var updater
     /// 팝오버 내부 화면 전환 방식 — sheet/dismiss 를 쓰지 않는다 (PopoverView 의 NOTE 참조)
     var onClose: () -> Void
     /// 기존 컬렉션의 도감으로 돌아가 대표 포켓몬을 고르게 한다.
@@ -24,8 +23,6 @@ struct SettingsView: View {
     @State private var sessionKeyInput = ""
     /// Pasted keys of the additional accounts, by folder path. Emptied once saved, like the default one.
     @State private var accountSessionKeyInputs: [String: String] = [:]
-    @State private var isCheckingUpdate = false
-    @State private var didCheckUpdate = false
     @State private var selectedScanProviderID = "claude_code"
     /// Provider the draft currently describes. Picker change updates `selectedScanProviderID`
     /// before the TextField blurs; committing against the selection would write Claude paths
@@ -75,7 +72,6 @@ struct SettingsView: View {
                         menuBarGroup(store)
                         floatingPetGroup(store)
                         notificationsGroup(store)
-                        updateGroup(store)
                         transferGroup(store)
                         advancedGroup(store)
                             .id("advancedSettingsSection")
@@ -130,13 +126,6 @@ struct SettingsView: View {
     private var footer: some View {
         HStack(spacing: 5) {
             Text("v\(Self.appVersion)")
-            Text("·")
-            footerLink("GitHub", "https://github.com/chattymin/PokeTokenBar")
-            Text("·")
-            footerLink(l.website, "https://chattymin.github.io/PokeTokenBar/")
-            Text("·")
-            // 개발자 후원 — 기능 잠금·너지 없는 푸터 링크
-            footerLink("♥ " + l.sponsor, "https://github.com/sponsors/chattymin")
             Spacer()
         }
         .font(.caption2)
@@ -349,59 +338,6 @@ struct SettingsView: View {
                 Spacer()
                 Toggle(l.statusChecksLabel, isOn: $store.statusChecksEnabled)
                     .labelsHidden().toggleStyle(.switch).controlSize(.small)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func updateGroup(_ store: UsageStore) -> some View {
-        @Bindable var store = store
-        settingsSection(l.updateSectionTitle) {
-            toggleRow(l.updateNotificationsLabel, $store.updateNotificationsEnabled)
-            Divider()
-            groupRow {
-                Text(l.checkForUpdatesLabel)
-                Spacer()
-                Button {
-                    isCheckingUpdate = true
-                    Task {
-                        await updater.check(minInterval: 0)   // 수동 확인 — 레이트리밋 우회(강제 조회)
-                        isCheckingUpdate = false
-                        didCheckUpdate = true
-                    }
-                } label: {
-                    if isCheckingUpdate {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text(l.checkNowButton)
-                    }
-                }
-                .disabled(isCheckingUpdate)
-            }
-            // 확인 결과 — 알림을 꺼둔 사용자도 여기서 새 버전을 알고 바로 적용할 수 있게 업데이트 버튼을 함께 노출.
-            if didCheckUpdate, !isCheckingUpdate {
-                Divider()
-                groupRow {
-                    if case .offer(let version) = updater.settingsNotice {
-                        Text(l.updateFound(version)).font(.caption).foregroundStyle(.orange)
-                        Spacer()
-                        Button(l.updateButton) { updater.applyUpdate() }.controlSize(.small)
-                    } else if case .skipped(let version) = updater.settingsNotice {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(l.skippedVersion(version))
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .fixedSize(horizontal: false, vertical: true)
-                            HStack(spacing: 8) {
-                                Button(l.showSkippedAgain) { updater.showSkippedAgain() }.controlSize(.small)
-                                Button(l.updateButton) { updater.applyUpdate() }.controlSize(.small)
-                            }
-                        }
-                    } else {
-                        Text(l.upToDate(Self.appVersion)).font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                }
             }
         }
     }
@@ -913,17 +849,6 @@ struct SettingsView: View {
             Spacer()
             Toggle(label, isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.small)
         }
-    }
-
-    /// 푸터 링크 — 버전 표기와 동일한 크기·색을 상속하고 밑줄로만 구분.
-    private func footerLink(_ title: String, _ urlString: String) -> some View {
-        Button {
-            if let url = URL(string: urlString) { NSWorkspace.shared.open(url) }
-        } label: {
-            Text(title).underline()
-        }
-        .buttonStyle(.plain)
-        .help(urlString)
     }
 
     private func commitCustomScanDraft() {

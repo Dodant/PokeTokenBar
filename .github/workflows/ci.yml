@@ -14,9 +14,9 @@ concurrency:
 jobs:
   build-test:
     name: build-test
-    # macos-15 ships Xcode 16 / Swift 6, which Package.swift requires
-    # (swift-tools-version: 6.0, platform macOS 14).
-    runs-on: macos-15
+    # macos-26 ships Xcode 26 / Swift 6.2, which Package.swift requires
+    # (swift-tools-version: 6.2, platform macOS 26).
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
 

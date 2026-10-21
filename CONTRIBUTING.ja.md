@@ -10,7 +10,7 @@
 
 ## 前提条件
 
-- **macOS 14 (Sonoma) 以降**
+- **macOS 26 (Tahoe) 以降**
 - **Swift 6 ツールチェーン** (Xcode 16 以降) — `Package.swift` が要求
   (`swift-tools-version: 6.0`)
 

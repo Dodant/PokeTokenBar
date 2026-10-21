@@ -114,12 +114,6 @@ final class LocalizationInterpolationTests: XCTestCase {
             expect(lang, "notifCandyTitle", l.notifCandyTitle(item: a, count: 4242), a, "4242")
             expect(lang, "notifCandyBody", l.notifCandyBody(window: a), a)
 
-            // Updates / 업데이트
-            expect(lang, "updateAvailable", l.updateAvailable(a, current: b), a, b)
-            expect(lang, "updateFound", l.updateFound(a), a)
-            expect(lang, "upToDate", l.upToDate(a), a)
-            expect(lang, "skippedVersion", l.skippedVersion(a), a)
-
             // Bag, shop, eggs / 가방 · 상점 · 알
             expect(lang, "useOnCurrent", l.useOnCurrent(a), a)
             expect(lang, "buyConfirm", l.buyConfirm(a), a)

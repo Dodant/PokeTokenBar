@@ -14,8 +14,7 @@ import Darwin
 /// `Contents/MacOS/…` 를 직접 exec 하므로 그 경로를 타지 않는다. 그래서 앱이 스스로 막는다.
 ///
 /// 물러나는 쪽을 나중에 뜬 인스턴스로 정한 이유는 사용자가 보고 있던 팝오버·설정 창을 유지하기 위해서다.
-/// 그 종료는 정상 종료(exit 0)라 `KeepAlive.SuccessfulExit=false` 인 에이전트가 되살리지 않는다
-/// (`UpdateChecker.applyUpdate` 가 이미 같은 성질에 기대고 있다).
+/// 그 종료는 정상 종료(exit 0)라 `KeepAlive.SuccessfulExit=false` 인 에이전트가 되살리지 않는다.
 ///
 /// **대가 — 크래시 자동 재실행이 그동안 꺼진다.** 물러나는 쪽이 곧 launchd 가 소유한 프로세스라,
 /// 살아남는 인스턴스는 워치독 밖에 있다. 다음 로그인에 에이전트가 단독 실행하면서 복구되지만,

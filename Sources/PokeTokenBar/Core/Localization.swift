@@ -191,8 +191,6 @@ struct L {
     var tokenOutput: String { t("출력", "Output", "出力", "Salida", "Sortie", "Saída", "Ausgabe", "Вывод") }
     var tokenCacheWrite: String { t("캐시 쓰기", "Cache write", "キャッシュ書込", "Escritura caché", "Écriture cache", "Gravação cache", "Cache schreiben", "Запись в кэш") }
     var tokenCacheRead: String { t("캐시 읽기", "Cache read", "キャッシュ読込", "Lectura caché", "Lecture cache", "Leitura cache", "Cache lesen", "Чтение кэша") }
-    var website: String { t("웹사이트", "Website", "ウェブサイト", "Sitio web", "Site web", "Site", "Website", "Сайт") }
-    var sponsor: String { t("후원", "Sponsor", "支援", "Apoyar", "Soutenir", "Apoiar", "Unterstützen", "Поддержать") }
     var evolutionScrollPrevious: String { t("이전 진화 보기", "Show previous evolutions", "前の進化を見る", "Ver evoluciones anteriores", "Voir les évolutions précédentes", "Ver evoluções anteriores", "Vorherige Entwicklungen anzeigen", "Показать предыдущие эволюции") }
     var evolutionScrollNext: String { t("다음 진화 보기", "Show next evolutions", "次の進化を見る", "Ver evoluciones siguientes", "Voir les évolutions suivantes", "Ver próximas evoluções", "Nächste Entwicklungen anzeigen", "Показать следующие эволюции") }
 
@@ -1390,38 +1388,6 @@ struct L {
           "Melde dich erneut in Cursor IDE an oder versuch es noch einmal.",
           "Снова войдите в Cursor IDE или повторите попытку.")
     }
-
-    // MARK: 업데이트 알림
-    func updateAvailable(_ version: String, current: String) -> String {
-        t("🆕 v\(version) 사용 가능 (현재 \(current))",
-          "🆕 v\(version) available (you have \(current))",
-          "🆕 v\(version) が利用可能（現在 \(current)）",
-          "🆕 v\(version) disponible (tienes \(current))",
-          "🆕 v\(version) disponible (tu as \(current))",
-          "🆕 v\(version) disponível (você tem \(current))",
-          "🆕 v\(version) verfügbar (installiert: \(current))",
-          "🆕 Доступна v\(version) (у вас \(current))")
-    }
-    var updateButton: String { t("업데이트", "Update", "更新", "Actualizar", "Mettre à jour", "Instalar", "Aktualisieren", "Обновить") }
-    var skipThisVersion: String { t("이 버전 건너뛰기", "Skip this version", "このバージョンをスキップ", "Omitir esta versión", "Ignorer cette version", "Ignorar esta versão", "Diese Version überspringen", "Пропустить эту версию") }
-    func skippedVersion(_ version: String) -> String {
-        t("v\(version)을 건너뛰었어요",
-          "You skipped v\(version)",
-          "v\(version) をスキップしました",
-          "Omitiste la v\(version)",
-          "Tu as ignoré la v\(version)",
-          "Você ignorou a v\(version)",
-          "Du hast v\(version) übersprungen",
-          "Вы пропустили v\(version)")
-    }
-    var showSkippedAgain: String { t("다시 알리기", "Show again", "もう一度表示", "Mostrar de nuevo", "Afficher à nouveau", "Mostrar de novo", "Wieder anzeigen", "Показать снова") }
-    var updating: String { t("업데이트 중…", "Updating…", "更新中…", "Actualizando…", "Mise à jour…", "Atualizando…", "Wird aktualisiert…", "Обновление…") }
-    var updateSectionTitle: String { t("업데이트", "Updates", "アップデート", "Actualizaciones", "Mises à jour", "Atualizações", "Aktualisierungen", "Обновления") }
-    var updateNotificationsLabel: String { t("업데이트 알림", "Update notifications", "アップデート通知", "Notificaciones de actualización", "Notifications de mise à jour", "Notificações de atualização", "Hinweise auf Aktualisierungen", "Уведомления об обновлениях") }
-    var checkForUpdatesLabel: String { t("업데이트 확인", "Check for updates", "アップデートを確認", "Buscar actualizaciones", "Rechercher des mises à jour", "Buscar atualizações", "Nach Aktualisierungen suchen", "Проверять обновления") }
-    var checkNowButton: String { t("지금 확인", "Check now", "今すぐ確認", "Comprobar ahora", "Vérifier maintenant", "Buscar agora", "Jetzt prüfen", "Проверить сейчас") }
-    func updateFound(_ version: String) -> String { t("새 버전 v\(version) 있어요", "Version \(version) is available", "バージョン \(version) が利用可能です", "La versión \(version) está disponible", "La version \(version) est disponible", "A versão \(version) está disponível", "Version \(version) ist verfügbar", "Доступна версия \(version)") }
-    func upToDate(_ version: String) -> String { t("최신 버전이에요 (v\(version))", "You're on the latest (v\(version))", "最新です (v\(version))", "Tienes la última versión (v\(version))", "Tu as la dernière version (v\(version))", "Você está na última versão (v\(version))", "Du hast die neueste Version (v\(version))", "У вас последняя версия (v\(version))") }
 
     // MARK: 알림
     var notifCritical: String { t("한도 임박", "Limit imminent", "上限切迫", "Límite inminente", "Limite imminente", "Limite iminente", "Limit fast erreicht", "Лимит почти исчерпан") }
