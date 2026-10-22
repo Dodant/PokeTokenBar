@@ -407,6 +407,28 @@ final class RareCandyStoreTests: XCTestCase {
         }
     }
 
+    func testGraduationCarryoverMovesLeftoverXPIntoNextEggAndPersists() async throws {
+        let suite = "rc-carry-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("rc-\(UUID().uuidString).json")
+        let s = CompanionStore(provider: StubProvider(value: rcNoEvo), clock: { rcNow }, fileURL: url,
+                               rng: SeededRNG(seed: 7), defaults: defaults)
+        XCTAssertFalse(s.candyGraduationCarryover)   // 기본은 기존 동작(버림)
+        s.candyGraduationCarryover = true
+        await s.hatch(baseID: 20)
+        s.applyUsage(500_000_000)   // 남은 250M → 사탕 3개, 50M 초과
+        giveCandies(s, 5)
+        XCTAssertEqual(try XCTUnwrap(s.planRareCandyUse(count: 3)).discardedXP, 50_000_000)
+        XCTAssertEqual(s.useRareCandy(count: 3), .graduated)
+        XCTAssertEqual(s.state.eggUsage, 50_000_000)
+        XCTAssertEqual(s.state.usedSinceInstall, 0)   // 실사용 통계는 그대로
+        let reloaded = CompanionStore(provider: StubProvider(value: rcNoEvo), clock: { rcNow }, fileURL: url,
+                                      rng: SeededRNG(seed: 7), defaults: defaults)
+        XCTAssertTrue(reloaded.candyGraduationCarryover)
+        XCTAssertEqual(reloaded.state.eggUsage, 50_000_000)
+    }
+
     func testBatchCapsAtInventoryAndRejectsNonpositiveAmounts() async throws {
         let s = store(rcLinear3)
         await s.hatch(baseID: 1)

@@ -59,6 +59,10 @@ final class CompanionStore {
     private(set) var growthDifficulty: Double
     /// 상점 배율 — 아이템·알 가격에 곱한다. 낮을수록 싸다.
     private(set) var shopDifficulty: Double
+    /// 사탕으로 졸업할 때 남는 XP 를 다음 알 인큐베이션(eggUsage)으로 넘길지 — 취향 설정이라 난이도와 같이 UserDefaults.
+    var candyGraduationCarryover: Bool {
+        didSet { defaults.set(candyGraduationCarryover, forKey: "candyGraduationCarryover") }
+    }
 
     init(provider: any PokeProviding = PokeAPIClient.shared,
          detailProvider: (any PokemonDetailProviding)? = nil,
@@ -81,6 +85,7 @@ final class CompanionStore {
         growthDifficulty = PokemonBalance.clampDifficulty(storedGrowth)
         shopDifficulty = PokemonBalance.clampDifficulty(
             defaults.object(forKey: "shopDifficulty") as? Double ?? PokemonBalance.defaultDifficulty)
+        candyGraduationCarryover = defaults.bool(forKey: "candyGraduationCarryover")
         load()
         if previousGrowth != growthDifficulty {
             rescaleBankedGrowth(from: previousGrowth, to: growthDifficulty)
@@ -1136,7 +1141,15 @@ final class CompanionStore {
         candyFeedbackAmount = xp
         candyFeedbackSeq += 1
         applyUsage(xp)   // Saves inventory and growth together, with existing evolution effects.
-        if state.active == nil { return .graduated }
+        if state.active == nil {
+            // graduate() 가 eggUsage 를 0 으로 연 직후 — 남은 XP 를 새 알에 넣는다. 부화 임계를 넘으면
+            // 다음 update() 가 부화시키고, 부화 초과분은 기존 규칙대로 부화체 성장으로 이월된다.
+            if candyGraduationCarryover, preview.graduates, preview.discardedXP > 0 {
+                state.eggUsage += preview.discardedXP
+                save()
+            }
+            return .graduated
+        }
         if state.active!.stageIndex > beforeStage { return .evolved }
         return .progressed
     }

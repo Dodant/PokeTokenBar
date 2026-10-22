@@ -1435,6 +1435,22 @@ struct L {
           "При выпуске сгорит остаток: \(xp) XP.")
     }
 
+    var candyCarryoverToEggLabel: String {
+        t("남은 XP를 다음 알로 이월", "Carry leftover XP to the next egg", "余ったXPを次のタマゴに繰り越す",
+          "Pasar la XP sobrante al siguiente huevo", "Reporter les XP restants sur le prochain œuf",
+          "Levar a XP restante para o próximo ovo", "Übrige EP ins nächste Ei übertragen",
+          "Переносить остаток XP в следующее яйцо")
+    }
+    func candyCarriedToEggXP(_ xp: String) -> String {
+        t("졸업 시 남는 \(xp) XP는 다음 알로 이월돼요.", "On graduation, \(xp) leftover XP goes to the next egg.",
+          "卒業時、余った\(xp) XPは次のタマゴに繰り越されます。",
+          "Al graduarse, \(xp) XP sobrantes pasarán al siguiente huevo.",
+          "À la fin de la croissance, les \(xp) XP restants iront au prochain œuf.",
+          "Ao se formar, \(xp) XP restantes vão para o próximo ovo.",
+          "Beim Trainingsabschluss gehen \(xp) überschüssige EP ins nächste Ei.",
+          "При выпуске остаток \(xp) XP перейдёт в следующее яйцо.")
+    }
+
     /// 아이템 표시명 — species 처럼 공식 현지명.
     func itemName(_ kind: ItemKind) -> String {
         switch kind {

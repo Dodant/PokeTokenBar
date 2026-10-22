@@ -241,8 +241,13 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var difficultyGroup: some View {
+        @Bindable var companion = companion
         DifficultySettingsSection(companion: companion)
+        settingsSection(l.itemName(.rareCandy)) {
+            toggleRow(l.candyCarryoverToEggLabel, $companion.candyGraduationCarryover)
+        }
     }
 
     @ViewBuilder

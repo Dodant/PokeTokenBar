@@ -84,8 +84,10 @@ private struct ItemCard: View {
                     Text(l.candyGraduates).font(.caption2).foregroundStyle(.secondary)
                 }
                 if preview.discardedXP > 0 {
-                    Text(l.candyDiscardedXP(TokenFormatter.compact(preview.discardedXP)))
-                        .font(.caption2).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    let xp = TokenFormatter.compact(preview.discardedXP)
+                    Text(store.candyGraduationCarryover ? l.candyCarriedToEggXP(xp) : l.candyDiscardedXP(xp))
+                        .font(.caption2).foregroundStyle(store.candyGraduationCarryover ? Color.secondary : Color.orange)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else if preview.evolves && !preview.graduates {
                     Text(l.candyCarryoverXP(TokenFormatter.compact(preview.carryoverXP)))
                         .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
