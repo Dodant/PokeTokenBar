@@ -1014,12 +1014,9 @@ struct CollectionView: View {
                 .frame(height: Self.contentHeight)
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                Picker("", selection: $nav.showingCollectionLog) {
-                    Text(store.l.dexTitle).tag(false)
-                    Text(store.l.catchLogTitle).tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                GlassTabBar(selection: $nav.showingCollectionLog, items: [
+                    (false, store.l.dexTitle), (true, store.l.catchLogTitle),
+                ])
 
                 filterToolbar
 

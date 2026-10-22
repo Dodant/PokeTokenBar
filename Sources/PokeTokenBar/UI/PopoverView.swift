@@ -121,14 +121,9 @@ struct PopoverView: View {
     private var mainContent: some View {
         @Bindable var nav = nav
         return VStack(alignment: .leading, spacing: 12) {
-            Picker("", selection: $nav.tab) {
-                Text(l.home).tag(PopoverTab.home)
-                Text(l.shop).tag(PopoverTab.shop)
-                Text(l.bag).tag(PopoverTab.bag)
-                Text(l.collection).tag(PopoverTab.collection)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            GlassTabBar(selection: $nav.tab, items: [
+                (PopoverTab.home, l.home), (.shop, l.shop), (.bag, l.bag), (.collection, l.collection),
+            ])
 
             if nav.tab == .collection {
                 CollectionView(store: companion, navigation: nav)
@@ -1579,6 +1574,46 @@ struct ProviderTabBar: View {
             items: snapshots.map { CapsuleTabBar.Item(id: $0.providerID, title: $0.displayName) },
             selectedID: selectedID,
             onSelect: onSelect)
+    }
+}
+
+/// Equal-width tabs on a glass track for the popover's top level. The accent selection pill slides
+/// between tabs; the system segmented picker sized to its labels and sat left-aligned on macOS 26.
+@MainActor
+struct GlassTabBar<Tab: Hashable>: View {
+    @Binding var selection: Tab
+    let items: [(Tab, String)]
+    @Namespace private var pill
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items, id: \.0) { tab, title in
+                let isSelected = tab == selection
+                Button { selection = tab } label: {
+                    Text(title)
+                        .font(.callout.weight(isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .contentShape(Capsule())
+                        .matchedGeometryEffect(id: tab, in: pill, isSource: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+            }
+        }
+        // One persistent pill follows the selected tab's frame, so it slides rather than cross-fading
+        // (a pill inserted per tab faded in at the destination). Not glass: a glass pill on the glass
+        // track merged with it, and a solid pill keeps glass off glass.
+        .background {
+            Capsule().fill(Color.accentColor)
+                .matchedGeometryEffect(id: selection, in: pill, isSource: false)
+        }
+        // Scoped here so only the pill slides; the tab content below swaps without animation as before.
+        .animation(.smooth(duration: 0.25), value: selection)
+        .padding(3)
+        .glassEffect(.regular, in: Capsule())
     }
 }
 
