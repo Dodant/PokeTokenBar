@@ -507,22 +507,10 @@ private struct SpeechBubbleView: View {
         .frame(width: FloatingPetController.bubbleContentWidth, alignment: .leading)
         .padding(.horizontal, FloatingPetController.bubbleHorizontalPadding)
         .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .windowBackgroundColor))
-                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
-        )
-        .overlay(
-            Path { path in
-                path.move(to: CGPoint(x: 10, y: 0))
-                path.addLine(to: CGPoint(x: 20, y: 0))
-                path.addLine(to: CGPoint(x: 15, y: 6))
-                path.closeSubpath()
-            }
-            .fill(Color(nsColor: .windowBackgroundColor))
-            .offset(y: 5),
-            alignment: .bottom
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        // The old tail Path was greedy and drew inside the bubble's top-left in the same fill, so it
+        // never showed; it is dropped rather than turned into a visible opaque triangle on glass.
+        // The 6pt it reserved stays so `panelSize` and the pet's position are unchanged.
         .padding(.bottom, 6)
     }
 }
