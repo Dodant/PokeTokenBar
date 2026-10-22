@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     /// 대표 스프라이트 정체성(종/shiny/fps 하한) 관찰 — 대표 선택·해제와 애니메이션 품질 변경뿐 아니라
-    /// 사탕 진화·졸업(BagView), 세이브 가져오기, 부화·메타몽 리빌 async 완료처럼 store 갱신 틱 없이
+    /// 사탕 진화·졸업(상점 사용 줄), 세이브 가져오기, 부화·메타몽 리빌 async 완료처럼 store 갱신 틱 없이
     /// companion 만 바뀌는 경로에서도 메뉴바를 즉시 갱신한다. observeStore(menuTitle)만으론 다음 사용량 폴링(기본 120s)까지
     /// 이전 포켓몬이 남는다(사탕 졸업 후 메뉴바 잔상 리포트 — UsageStore.onRefresh 주석과 같은 부류).
     ///

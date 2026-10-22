@@ -28,8 +28,8 @@ final class ScrollerLaneTests: XCTestCase {
             }
         }
 
-        // Home, Shop, Bag, catch log, Pokémon detail — guards against a vacuous pass if the scan breaks.
-        XCTAssertGreaterThanOrEqual(checked, 5)
+        // Home, Shop, catch log, Pokémon detail — guards against a vacuous pass if the scan breaks.
+        XCTAssertGreaterThanOrEqual(checked, 4)
         XCTAssertTrue(offenders.isEmpty, """
             Vertical ScrollViews in the popover must apply .reservesScrollerLane() to their content,
             or the overlay scroller covers right-aligned content. Missing at: \(offenders.joined(separator: ", "))

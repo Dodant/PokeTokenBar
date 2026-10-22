@@ -1399,8 +1399,6 @@ struct L {
     var codexPersonalLimit: String { t("Codex 개인 한도", "Codex personal limit", "Codex 個人上限", "Límite personal de Codex", "Limite personnelle Codex", "Limite pessoal do Codex", "Persönliches Codex-Limit", "Личный лимит Codex") }
 
     // MARK: 가방 / 아이템
-    var bag: String { t("가방", "Bag", "バッグ", "Bolsa", "Sac", "Bolsa", "Beutel", "Сумка") }
-    var bagEmptyTitle: String { t("아직 가방이 비어있어요!", "Your bag is empty!", "バッグはまだ空っぽです！", "¡Tu bolsa todavía está vacía!", "Ton sac est encore vide !", "Sua bolsa ainda está vazia!", "Dein Beutel ist noch leer!", "Сумка пуста!") }
     var useItem: String { t("사용하기", "Use", "つかう", "Usar", "Utiliser", "Usar", "Verwenden", "Применить") }
     var use: String { t("사용", "Use", "つかう", "Usar", "Utiliser", "Usar", "Verwenden", "Применить") }
     var cancel: String { t("취소", "Cancel", "キャンセル", "Cancelar", "Annuler", "Cancelar", "Abbrechen", "Отменить") }
