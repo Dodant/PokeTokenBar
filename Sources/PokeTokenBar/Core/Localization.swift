@@ -1435,6 +1435,9 @@ struct L {
           "При выпуске сгорит остаток: \(xp) XP.")
     }
 
+    /// 상점 "전부 구매"·가방 "전부 사용" — 수량을 한도로 채우고 확인 단계로.
+    var buyAll: String { t("전부 구매", "Buy all", "すべて購入", "Comprar todo", "Tout acheter", "Comprar tudo", "Alle kaufen", "Купить все") }
+    var useAll: String { t("전부 사용", "Use all", "すべて使う", "Usar todo", "Tout utiliser", "Usar tudo", "Alle verwenden", "Применить все") }
     var candyCarryoverToEggLabel: String {
         t("남은 XP를 다음 알로 이월", "Carry leftover XP to the next egg", "余ったXPを次のタマゴに繰り越す",
           "Pasar la XP sobrante al siguiente huevo", "Reporter les XP restants sur le prochain œuf",

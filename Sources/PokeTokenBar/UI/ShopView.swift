@@ -135,6 +135,10 @@ private struct ShopItemCard: View {
                     .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
                 Spacer()
                 if store.canBuy(kind) {
+                    if showsQuantity {
+                        Button(l.buyAll) { quantity = maxQuantity; confirming = true }
+                            .buttonStyle(.glass).controlSize(.small)
+                    }
                     Button(l.buy) { confirming = true }
                         .buttonStyle(.glass).controlSize(.small)
                 } else {

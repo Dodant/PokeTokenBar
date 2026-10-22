@@ -149,6 +149,11 @@ private struct ItemCard: View {
                     Text(effectHint(l))
                         .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
                     Spacer()
+                    // 한도 = 보유량과 졸업까지 필요한 개수 중 작은 쪽(maxRareCandyUseCount) — 남는 사탕은 보존.
+                    if kind == .rareCandy, store.maxRareCandyUseCount > 1 {
+                        Button(l.useAll) { candyCount = store.maxRareCandyUseCount; confirming = true }
+                            .buttonStyle(.glass).controlSize(.small)
+                    }
                     Button(l.useItem) { confirming = true }
                         .buttonStyle(.glass).controlSize(.small)
                 }
