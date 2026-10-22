@@ -3,6 +3,8 @@ import UniformTypeIdentifiers
 
 @MainActor
 struct SettingsView: View {
+    /// One width for the settings menus, so their right edges and lengths line up row to row.
+    static let menuControlWidth: CGFloat = 160
     @Environment(UsageStore.self) private var store
     @Environment(CompanionStore.self) private var companion
     /// 팝오버 내부 화면 전환 방식 — sheet/dismiss 를 쓰지 않는다 (PopoverView 의 NOTE 참조)
@@ -148,7 +150,7 @@ struct SettingsView: View {
                     set: { companion.setLanguage($0); store.localizationLanguage = $0 })) {
                     ForEach(AppLanguage.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                .labelsHidden().pickerStyle(.menu).fixedSize()
+                .labelsHidden().pickerStyle(.menu).buttonSizing(.flexible).frame(width: Self.menuControlWidth, alignment: .trailing)
             }
             Divider()
             groupRow {
@@ -169,8 +171,7 @@ struct SettingsView: View {
                 } label: {
                     Text(representativeSelectionText).lineLimit(1).truncationMode(.tail)
                 }
-                .controlSize(.small)
-                .frame(width: 150, alignment: .trailing)
+                .buttonSizing(.flexible).frame(width: Self.menuControlWidth, alignment: .trailing)
                 .layoutPriority(1)
             }
             Divider()
@@ -180,7 +181,7 @@ struct SettingsView: View {
                 Picker(l.refreshInterval, selection: $store.refreshInterval) {
                     ForEach(UsageStore.intervalPresets, id: \.value) { Text(l.intervalLabel($0.value)).tag($0.value) }
                 }
-                .labelsHidden().pickerStyle(.menu).fixedSize()
+                .labelsHidden().pickerStyle(.menu).buttonSizing(.flexible).frame(width: Self.menuControlWidth, alignment: .trailing)
             }
             Divider()
             groupRow {
@@ -195,7 +196,7 @@ struct SettingsView: View {
                     Text(l.animationBalanced).tag(UsageStore.AnimationQuality.balanced)
                     Text(l.animationSmooth).tag(UsageStore.AnimationQuality.smooth)
                 }
-                .labelsHidden().pickerStyle(.menu).fixedSize()
+                .labelsHidden().pickerStyle(.menu).buttonSizing(.flexible).frame(width: Self.menuControlWidth, alignment: .trailing)
             }
             Divider()
             groupRow {
@@ -754,7 +755,7 @@ struct SettingsView: View {
                             Text(item.account.title).tag(item.mode)
                         }
                     }
-                    .labelsHidden().pickerStyle(.menu).fixedSize()
+                    .labelsHidden().pickerStyle(.menu).buttonSizing(.flexible).frame(width: Self.menuControlWidth, alignment: .trailing)
                 }
             }
         }
