@@ -1034,9 +1034,9 @@ struct CollectionView: View {
                     .accessibilityLabel(store.l.clearFilters)
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 6))
+            .glassEffect(.regular, in: Capsule())
 
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -1047,10 +1047,9 @@ struct CollectionView: View {
                     .font(.system(size: 13, weight: shinyOnly ? .bold : .regular))
                     .foregroundStyle(shinyOnly ? Color.yellow : Color.secondary)
                     .frame(width: 16, height: 16)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
+                    .padding(4)
                     .glassEffect(shinyOnly ? .regular.tint(.yellow.opacity(0.25)).interactive() : .regular.interactive(),
-                                 in: RoundedRectangle(cornerRadius: 6))
+                                 in: Circle())
             }
             .buttonStyle(.plain)
             .help(store.l.filterShinyOnly)
