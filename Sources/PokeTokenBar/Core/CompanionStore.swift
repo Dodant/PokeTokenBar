@@ -1276,6 +1276,7 @@ final class CompanionStore {
         state.eggTier = tier          // 등급 보증(nil = 보증 없음)
         state.pendingHatchID = nil    // 새 보증으로 처음부터 롤(활성 포켓몬이 있는 동안엔 원래 비어 있다)
         state.pendingForm = nil
+        state.pendingShiny = nil
         prefetchedLineID = nil
         justGraduated = nil; justEvolvedTo = nil; eventUntil = nil
         AppLog.write("egg purchased: discarded active, tier=\(tier?.rawValue ?? "none")")
@@ -1431,23 +1432,23 @@ final class CompanionStore {
         isHatching = true
         defer { isHatching = false }
         // 프리패칭된 종이 있으면 그대로 사용(라인·스프라이트 예열됨 → 딜레이 ~0), 없으면 지금 롤.
-        let base: Int?
+        let rolled: (id: Int, isShiny: Bool?)?
         if let pending = state.pendingHatchID {
-            base = pending
+            rolled = (pending, state.pendingShiny)
         } else {
-            base = await chooseBase()
+            rolled = await chooseBase().map { ($0.id, $0.isShiny) }
         }
         guard isCurrentReadyEgg(generation: generation) else {
             AppLog.write("hatch: discarded before result handling — subject replaced during species roll")
             kickLineLoadIfNeeded()
             return
         }
-        guard let base else {
+        guard let rolled else {
             isHatchRetryDelayed = true
             return
         }
-        let pendingForm = state.pendingHatchID == base ? state.pendingForm : nil
-        await hatchCore(baseID: base, generation: generation, form: pendingForm)
+        let pendingForm = state.pendingHatchID == rolled.id ? state.pendingForm : nil
+        await hatchCore(baseID: rolled.id, generation: generation, form: pendingForm, shiny: rolled.isShiny)
     }
 
     /// 부화가 폐기된 뒤 남은 개체(대개 방금 불러온 개체)의 진화 라인을 다시 로드한다.
@@ -1498,12 +1499,13 @@ final class CompanionStore {
             // await 사이에 부화가 끝났거나(active != nil) 상태가 통째로 교체됐으면(세이브 불러오기)
             // 이 롤을 버린다 — 안 그러면 불러온 알의 pre-roll 을 남의 롤로 덮어쓴다.
             guard isCurrentEgg(generation: generation) else { return }
-            guard let id = selected else {
+            guard let selected else {
                 markHatchRetryDelayedIfReady(generation: generation)
                 return
             }
-            state.pendingHatchID = id
-            state.pendingForm = rollLineForm(baseID: id)
+            state.pendingHatchID = selected.id
+            state.pendingShiny = selected.isShiny
+            state.pendingForm = rollLineForm(baseID: selected.id)
             save()
         }
         guard let id = state.pendingHatchID else { return }
@@ -1539,10 +1541,13 @@ final class CompanionStore {
     }
 
     /// Draws only for lines with forms, so other species keep their random sequence.
+    /// An already-drawn line only comes back for its missing forms, so it draws among those.
     private func rollLineForm(baseID: Int) -> PokemonForm? {
         let forms = PokemonForm.lineForms(baseID: baseID)
         guard !forms.isEmpty else { return nil }
-        return PokemonForm.roll(rng.next(), among: forms, collected: state.collectedLineForms(baseID: baseID))
+        let collected = state.collectedLineForms(baseID: baseID)
+        let missing = forms.filter { !collected.contains($0) }
+        return PokemonForm.roll(rng.next(), among: missing.isEmpty ? forms : missing, collected: collected)
     }
 
     /// Warms the localized names the hatch, evolution and graduation messages of this line show.
@@ -1597,7 +1602,8 @@ final class CompanionStore {
     }
 
     /// 실제 부화 로직 — isHatching 락은 호출자(hatch / hatchIfNeeded)가 소유·해제한다.
-    private func hatchCore(baseID: Int, generation: Int, form pendingForm: PokemonForm? = nil) async {
+    private func hatchCore(baseID: Int, generation: Int, form pendingForm: PokemonForm? = nil,
+                           shiny pendingShiny: Bool? = nil) async {
         let line: EvoLine
         do {
             line = try await provider.line(baseSpeciesID: baseID)
@@ -1621,6 +1627,7 @@ final class CompanionStore {
             AppLog.write("hatch: rolled \(line.rarity) below guaranteed \(tier) — discarded, re-roll next tick")
             state.pendingHatchID = nil
             state.pendingForm = nil
+            state.pendingShiny = nil
             prefetchedLineID = nil
             markHatchRetryDelayedIfReady(generation: generation)
             save()
@@ -1628,6 +1635,7 @@ final class CompanionStore {
         }
         state.pendingHatchID = nil
         state.pendingForm = nil
+        state.pendingShiny = nil
         // A later egg can roll the same species with another form and must warm its own sprite.
         prefetchedLineID = nil
         currentLine = line
@@ -1636,10 +1644,10 @@ final class CompanionStore {
         let overflow = max(0, state.eggUsage - eggHatchThreshold)
         state.eggUsage = 0
         state.eggTier = nil   // 보증은 이 부화로 소비된다(다음 알은 다시 무보증)
-        // 개체 롤 — shiny(1/64, 부적 1/48)는 부화 순간 확정, 진화해도 유지.
+        // 개체 롤 — shiny(1/64, 부적 1/48)는 종과 함께 미리 뽑았으면 그 값, 아니면 부화 순간 확정. 진화해도 유지.
         // 알림 문구는 이 판정과 같은 분모를 보여준다.
         let shinyOdds = shinyDenominator
-        let isShiny = Self.rollsShiny(roll: rng.next(), charmOwned: ownsShinyCharm)
+        let isShiny = pendingShiny ?? Self.rollsShiny(roll: rng.next(), charmOwned: ownsShinyCharm)
         // 메타몽 위장 롤 — common·≥2형태에 한해 1/128. .app 게이트(&& 단락 → 비앱에선 rng 미소비로
         // 기존 테스트 RNG 시퀀스 무영향). 위장/리빌 로직은 상태 기반으로 별도 테스트한다.
         var dittoDisguise: Int?
@@ -1761,17 +1769,28 @@ final class CompanionStore {
     ///      단, 이미 수집한 base 는 가중치 ½(미수집 부스트 — 재부화/shiny 사냥은 열어둠)
     ///   ③ 누적 가중치에서 정확히 1롤 — 루프/재롤 없음, 시간 상한 확정적
     /// 인덱스 취득 실패(오프라인 + 캐시 없음) 시 nil → 알 유지, 다음 갱신 틱 재시도.
-    private func chooseBase() async -> Int? {
+    /// 종과 이로치를 함께 뽑는다 — 이미 뽑은 라인은 못 모은 폼이 남았거나 이로치가 당첨됐을 때만 다시 나온다.
+    /// 이로치는 종 다음에 뽑아 기존 rng 순서(종 → 이로치)를 지킨다. 당첨되면 이미 뽑은 라인까지 넣어 다시 뽑는다.
+    private func chooseBase() async -> (id: Int, isShiny: Bool)? {
+        guard let id = await chooseBaseID(allowingDrawn: false) else { return nil }
+        guard Self.rollsShiny(roll: rng.next(), charmOwned: ownsShinyCharm) else { return (id, false) }
+        return await chooseBaseID(allowingDrawn: true).map { ($0, true) }
+    }
+
+    private func chooseBaseID(allowingDrawn: Bool) async -> Int? {
         let tier = state.eggTier
         if let full = try? await provider.baseSpeciesIndex(), !full.isEmpty {
             // 등급 보증 알은 후보를 먼저 좁힌다 — capture_rate 상한이 곧 등급 하한이므로
             // (Rarity.captureRateCeiling) 전설도 자연히 포함된다("희귀 이상"에 전설이 들어가는 게 정상).
             // 좁힌 결과가 비면 보증을 못 지키므로 전체 풀로 폴백하지 말고 알을 유지한다(다음 틱 재시도).
-            let index = tier.map { t in full.filter { t.includes(captureRate: $0.captureRate) } } ?? full
-            guard !index.isEmpty else {
+            let tiered = tier.map { t in full.filter { t.includes(captureRate: $0.captureRate) } } ?? full
+            guard !tiered.isEmpty else {
                 AppLog.write("hatch: no candidate for guaranteed \(tier?.rawValue ?? "none") — egg kept, retry next tick")
                 return nil
             }
+            // 이미 뽑은 라인은 뺀다. 후보를 다 모았으면(도감 완성) 알이 영영 안 깨지지 않게 중복을 허용한다.
+            let undrawn = allowingDrawn ? tiered : tiered.filter { !state.isLineDrawnOut(baseID: $0.id) }
+            let index = undrawn.isEmpty ? tiered : undrawn
             let weights = index.map { e in
                 CollectionWeight.adjusted(e.captureRate, isCollected: state.hasCollectedFinal(forBaseID: e.id))
             }

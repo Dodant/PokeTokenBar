@@ -182,27 +182,26 @@ final class UnownTests: XCTestCase {
         XCTAssertEqual(s.currentForm, .question, "The missing form occupies both final slots of the weighted pool")
     }
 
-    func testPrefetchUsesOwnedFormWeights() async throws {
+    /// A drawn line comes back only for its missing forms, so the form roll draws among those.
+    func testPrefetchDrawsOnlyMissingFormsOfDrawnLine() async throws {
         var original = CompanionState()
         original.installBaselineSet = true
         original.lastDate = "d1"
         original.dex = PokemonForm.unownLetters.dropLast().map { entry($0) }
-        let seed = try XCTUnwrap((UInt64(0)..<1_000).first { seed in
-            var rng = SeededRNG(seed: seed)
-            _ = rng.next() // Species selection precedes form selection.
-            let roll = rng.next()
-            return roll % 29 == 27 && roll % 56 / 2 != 27
-        })
-        let signal = UnownPrefetchSignal()
-        let s = try store(original, seed: seed, provider: UnownPrefetchProvider(lineRequested: signal))
-        s.update(todayTokensByProvider: ["test": 1_000], todayDate: "d1", monthTotal: 0,
-                 burnTier: .idle, limitWarning: false, hasUsageData: true)
-        await signal.wait()
-        XCTAssertEqual(s.state.pendingHatchID, 201)
-        XCTAssertEqual(s.state.pendingForm, .question)
+        for seed: UInt64 in [0, 1, 7, 42] {
+            let signal = UnownPrefetchSignal()
+            let s = try store(original, seed: seed, provider: UnownPrefetchProvider(lineRequested: signal))
+            s.update(todayTokensByProvider: ["test": 1_000], todayDate: "d1", monthTotal: 0,
+                     burnTier: .idle, limitWarning: false, hasUsageData: true)
+            await signal.wait()
+            XCTAssertEqual(s.state.pendingHatchID, 201)
+            XCTAssertEqual(s.state.pendingForm, .question, "seed \(seed)")
+        }
     }
 
-    func testFormOwnershipDoesNotChangeSpeciesSelectionOrShinyRolls() async throws {
+    /// Owned forms keep the species weights until every form is owned; then the line leaves the
+    /// pool and only a shiny roll (which re-draws from the full pool) brings it back.
+    func testFormOwnershipKeepsSpeciesWeightsUntilLineIsDrawnOut() async throws {
         var selectedSpecies = Set<Int>()
         for seed: UInt64 in [1, 7, 17, 42, 128, 999] {
             for forms in [[], [PokemonForm.b], PokemonForm.unownLetters] {
@@ -213,8 +212,11 @@ final class UnownTests: XCTestCase {
                 let s = try store(original, seed: seed, provider: UnownSelectionProvider())
                 var rng = SeededRNG(seed: seed)
                 // Existing species weights: Pikachu 255, collected Unown floor(225 / 2) = 112.
-                let expectedSpecies = rng.next() % 367 < 255 ? 25 : 201
+                let drawnOut = forms.count == PokemonForm.unownLetters.count
+                let speciesRoll = rng.next()
+                var expectedSpecies = drawnOut ? 25 : (speciesRoll % 367 < 255 ? 25 : 201)
                 let expectedShiny = rng.next() % PokemonOdds.shinyDenominator == 0
+                if expectedShiny { expectedSpecies = rng.next() % 367 < 255 ? 25 : 201 }
                 let expectedProfileSeed = rng.next()
                 await s.hatchIfNeeded()
                 XCTAssertEqual(s.currentSpeciesID, expectedSpecies)
@@ -526,10 +528,12 @@ final class UnownTests: XCTestCase {
         let seed = try XCTUnwrap((UInt64(0)..<1_000).first { seed in
             var rng = SeededRNG(seed: seed)
             _ = rng.next()
+            guard rng.next() % PokemonOdds.shinyDenominator != 0 else { return false }
             return rng.next() % 56 / 2 != 0
         })
         var prefetchRNG = SeededRNG(seed: seed)
         _ = prefetchRNG.next() // 종 선택
+        _ = prefetchRNG.next() // 이로치(종과 함께 pre-roll)
         let expectedForm = PokemonForm.unownLetters[Int(prefetchRNG.next() % 56 / 2)]
         let signal = UnownPrefetchSignal()
         let url = try stateURL()
@@ -548,8 +552,7 @@ final class UnownTests: XCTestCase {
         // 새 RNG라면 원래 다른 글자가 나오는 시드로 재실행해도 pending 글자를 사용한다.
         let restartedSeed = try XCTUnwrap((UInt64(0)..<1_000).first { seed in
             var rng = SeededRNG(seed: seed)
-            _ = rng.next() // shiny
-            _ = rng.next() // profile seed
+            _ = rng.next() // profile seed (shiny 는 pre-roll 값을 쓴다)
             return PokemonForm.unownLetters[Int(rng.next() % 56 / 2)] != expectedForm
         })
         persisted.eggUsage = PokemonBalance.eggHatchThreshold

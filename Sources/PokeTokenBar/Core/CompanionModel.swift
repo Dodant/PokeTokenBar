@@ -581,6 +581,9 @@ struct CompanionState: Codable, Sendable {
     var pendingHatchID: Int?
     /// The form is chosen with the species so prefetch warms the exact sprite that will hatch.
     var pendingForm: PokemonForm?
+    /// Shiny is rolled with the species: a shiny roll is what lets an already-drawn line hatch again.
+    /// Nil = not pre-rolled (older saves), so the hatch rolls it.
+    var pendingShiny: Bool?
     /// 오늘 사용량 적립 기준값 — 프로바이더별로 독립 관리한다.
     ///
     /// `nil`은 aggregate `claimedTodayTokens`만 가지고 있던 구버전 세이브가 아직 첫 유효
@@ -627,6 +630,7 @@ struct CompanionState: Codable, Sendable {
         pendingHatchID     = c.lenientOptional(Int.self, forKey: .pendingHatchID)
         pendingForm        = PokemonForm.resolved(baseID: pendingHatchID ?? 0,
             form: PokemonForm.decoded(from: decoder, keys: "pendingForm", "pendingUnownForm"))
+        pendingShiny       = c.lenientOptional(Bool.self, forKey: .pendingShiny)
         if c.contains(.claimedTodayTokensByProvider) {
             claimedTodayTokensByProvider = c.lenient([String: Int].self,
                                                       forKey: .claimedTodayTokensByProvider,
@@ -663,6 +667,12 @@ struct CompanionState: Codable, Sendable {
         guard let active else { return false }
         return active.pathIDs.prefix(active.stageIndex + 1).contains(speciesID)
             && PokemonForm.resolved(speciesID: speciesID, form: active.form) == form
+    }
+
+    /// 이 라인을 이미 뽑았고(졸업·놓아줌·현재 개체) 더 모을 폼도 없는가 — 일반 알 롤에서 빠지는 라인.
+    func isLineDrawnOut(baseID: Int) -> Bool {
+        guard active?.baseID == baseID || dex.contains(where: { $0.baseID == baseID }) else { return false }
+        return collectedLineForms(baseID: baseID).count == PokemonForm.lineForms(baseID: baseID).count
     }
 
     func hasCollectedFinal(forBaseID baseID: Int) -> Bool {

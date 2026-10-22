@@ -1880,6 +1880,44 @@ final class CompanionIdentityTests: XCTestCase {
         XCTAssertEqual(s2.state.active?.baseID, 2, "수집済 가중치 ½ 로 선택 구간이 이동해야 한다")
     }
 
+    /// 이미 뽑은 라인은 다시 나오지 않는다 — 이로치 당첨만 예외(전체 풀에서 재추첨).
+    /// rng: 종(1) → 이로치(2) → 당첨 시 전체 풀 재추첨(3).
+    func testSamplerSkipsDrawnLineUnlessShiny() async {
+        // 뽑은 라인 1 은 cr 255 로 거의 항상 이길 무게지만, 비당첨이면 후보에서 빠져 2 만 남는다.
+        let index = [BaseSpecies(id: 1, captureRate: 255), BaseSpecies(id: 2, captureRate: 1)]
+        var drawn = eggReadyState(collected: ["1:1"])
+        drawn.dex = [DexEntry(baseID: 1, finalID: 1, chainOrder: [1], rarity: .common, caughtAt: nil)]
+        func rolls(_ seed: UInt64) -> (shiny: Bool, reroll: UInt64) {
+            var r = SeededRNG(seed: seed)
+            _ = r.next()
+            return (r.next() % PokemonOdds.shinyDenominator == 0, r.next())
+        }
+        for seed: UInt64 in 0..<20 where !rolls(seed).shiny {
+            let p = IndexProvider(); p.index = index
+            let s = samplerStore(p, seed: seed, preloadState: drawn)
+            await s.hatchIfNeeded()
+            XCTAssertEqual(s.state.active?.baseID, 2, "seed \(seed): 뽑은 라인이 다시 나왔다")
+        }
+        // 당첨: 전체 풀(수집 가중 127 : 1)에서 재추첨 → 뽑은 라인이 이로치로 다시 나온다.
+        guard let shinySeed = (UInt64(0)..<20_000).first(where: { rolls($0).shiny && rolls($0).reroll % 128 < 127 })
+        else { return XCTFail("이로치 시드 탐색 실패") }
+        let p = IndexProvider(); p.index = index
+        let s = samplerStore(p, seed: shinySeed, preloadState: drawn)
+        await s.hatchIfNeeded()
+        XCTAssertEqual(s.state.active?.baseID, 1)
+        XCTAssertEqual(s.state.active?.isShiny, true)
+    }
+
+    /// 후보를 다 뽑았으면(도감 완성) 알을 붙잡지 않고 중복을 허용한다.
+    func testSamplerAllowsDuplicateWhenEveryLineIsDrawn() async {
+        let p = IndexProvider(); p.index = [BaseSpecies(id: 1, captureRate: 255)]
+        var drawn = eggReadyState(collected: ["1:1"])
+        drawn.dex = [DexEntry(baseID: 1, finalID: 1, chainOrder: [1], rarity: .common, caughtAt: nil)]
+        let s = samplerStore(p, seed: 1, preloadState: drawn)
+        await s.hatchIfNeeded()
+        XCTAssertEqual(s.state.active?.baseID, 1)
+    }
+
     /// 알 상태 프리패칭 — update 틱에 종이 pre-roll 되어 영속되고, 부화는 pending 을 그대로 사용.
     func testEggPrefetchStoresPendingAndHatchUsesIt() async {
         let p = IndexProvider()
