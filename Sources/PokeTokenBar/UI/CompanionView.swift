@@ -1922,14 +1922,6 @@ private struct DexSpeciesCell: View {
                             .padding(.horizontal, 2)
                             .background(.regularMaterial, in: Capsule())
                     }
-                    // ✨ = 이 종의 이로치를 잡은 적이 있다는 표식.
-                    if species.isShiny {
-                        Text("✨")
-                            .font(.system(size: 10))
-                            .padding(.horizontal, 2)
-                            .background(.regularMaterial, in: Capsule())
-                            .accessibilityLabel(store.l.dexShinyLabel)
-                    }
                 }
             }
             .padding(2)
@@ -1938,11 +1930,10 @@ private struct DexSpeciesCell: View {
             .background(isRepresentative ? Color.accentColor.opacity(0.16)
                                          : Color.secondary.opacity(isSelected ? 0.16 : 0.06))
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            // 키우는 중 = 파란 테두리(태그 대신), 방금 클릭한 칸 = accent 테두리.
+            // 테두리 색 우선순위: 키우는 중(파랑) > 이로치 잡음(노랑) > 방금 클릭한 칸(accent).
             .overlay {
-                if species.isRaising || isSelected {
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(species.isRaising ? Color.blue : Color.accentColor, lineWidth: 1.5)
+                if let borderColor {
+                    RoundedRectangle(cornerRadius: 8).strokeBorder(borderColor, lineWidth: 1.5)
                 }
             }
             // 호버 = 클릭 가능 피드백. 확대는 격자 간격 안에 머무는 폭으로만.
@@ -1996,6 +1987,12 @@ private struct DexSpeciesCell: View {
             .foregroundStyle(rarityColor(species.rarity))
             .padding(.horizontal, 2)
             .background(.regularMaterial, in: Capsule())
+    }
+
+    private var borderColor: Color? {
+        if species.isRaising { return .blue }
+        if species.isShiny { return .yellow }
+        return isSelected ? .accentColor : nil
     }
 
     /// 툴팁과 접근성 라벨이 같은 문장을 쓴다 — 칸이 글자로 못 보여주는 희귀도를 담는다.
