@@ -938,12 +938,15 @@ struct CollectionView: View {
     @State private var dexSort: CompanionStore.DexSortOption = .numberAsc
     @State private var logSort: CompanionStore.CatchLogSortOption = .recentFirst
     /// The species whose detail page was just closed. The detail page replaces the grid, so Back
-    /// rebuilds it; this makes it reopen on that species' page instead of page 1. Used once, and set
+    /// rebuilds it; this makes it scroll back to that species instead of the top. Used once, and set
     /// only when Back lands on the grid: the grid's appearance is what clears it.
     @State private var dexReturnAnchor: String?
     /// Same for the catch log: the row (`DexEntry.id`) that opened the detail page, scrolled back
     /// into view when Back rebuilds the log. Used once.
     @State private var logReturnAnchor: String?
+    @State private var logPosition = ScrollPosition(idType: String.self)
+    /// The row Back is restoring. Kept until the user scrolls, see the log's `onScrollGeometryChange`.
+    @State private var logSettleAnchor: String?
 
     /// 도감·로그 공통 높이 — 상점·가방과 같은 520. 세그먼트를 전환할 때도, 탭을 넘나들 때도
     /// 팝오버가 리사이즈되지 않는다.
@@ -1004,7 +1007,7 @@ struct CollectionView: View {
                         onSelectSpecies: { sp in nav.dexDetailCollectionID = sp.collectionID },
                         onResetFilters: resetFilters
                     )
-                    // The grid kept its own copy of the anchor; a later rebuild (segment switch) starts on page 1.
+                    // The grid kept its own copy of the anchor; a later rebuild (segment switch) starts at the top.
                     .onAppear { dexReturnAnchor = nil }
                 }
             }
@@ -1125,33 +1128,49 @@ struct CollectionView: View {
                         }
                         .reservesScrollerLane()
                     }
+                    .scrollPosition($logPosition)
                     .frame(maxHeight: .infinity)
                     .task {
                         guard let anchor = logReturnAnchor else { return }
                         logReturnAnchor = nil
-                        // The first scroll is placed with estimated heights for the lazy rows. The
-                        // rows it reveals are measured afterwards and push the target off its spot
-                        // (a row short on CI), so scroll again once they have been laid out.
-                        proxy.scrollTo(anchor, anchor: .center)
-                        try? await Task.sleep(for: .milliseconds(50))
-                        proxy.scrollTo(anchor, anchor: .center)
+                        logSettleAnchor = anchor
+                        logPosition.scrollTo(id: anchor, anchor: .center)
+                    }
+                    // The first scroll is placed with estimated heights for the lazy rows, so near the
+                    // end it clamps a row short. Each time the rows it reveals are measured, scroll again
+                    // (no fixed delay: 50ms passed locally and fell a row short on CI).
+                    .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
+                        if let logSettleAnchor { logPosition.scrollTo(id: logSettleAnchor, anchor: .center) }
+                    }
+                    .onScrollPhaseChange { _, phase in
+                        if phase == .interacting { logSettleAnchor = nil }
+                    }
+                    // The position lives in this view, which outlives the log; a later visit starts at the top.
+                    .onDisappear {
+                        logSettleAnchor = nil
+                        logPosition = ScrollPosition(idType: String.self)
                     }
                     // 필터·검색·정렬 변경 시 새 결과를 처음부터 보여준다.
                     .onChange(of: selectedRarity) {
-                        withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo("dexTop", anchor: .top) }
+                        scrollLogToTop(proxy)
                     }
                     .onChange(of: searchText) {
-                        withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo("dexTop", anchor: .top) }
+                        scrollLogToTop(proxy)
                     }
                     .onChange(of: shinyOnly) {
-                        withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo("dexTop", anchor: .top) }
+                        scrollLogToTop(proxy)
                     }
                     .onChange(of: logSort) {
-                        withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo("dexTop", anchor: .top) }
+                        scrollLogToTop(proxy)
                     }
                 }
             }
         }
+    }
+
+    private func scrollLogToTop(_ proxy: ScrollViewProxy) {
+        logSettleAnchor = nil
+        withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo("dexTop", anchor: .top) }
     }
 
     private var emptySearchResults: some View {
@@ -1214,114 +1233,7 @@ struct RepresentativeFooterButton: View {
     }
 }
 
-/// 도감 페이지 셰브론. `.plain` 버튼은 라벨 프레임만 클릭되는데 13pt 셰브론은 약 7×12pt 라
-/// 클릭이 자주 빗나갔다(#379). 글리프는 그대로 두고 히트 영역만 `hitSize` 정사각형으로 넓힌다.
-/// 푸터는 18pt 높이로 고정돼 있어 넘치는 부분은 레이아웃을 밀지 않고 위아래로 겹친다.
-@MainActor
-struct DexPageButton: View {
-    static let hitSize: CGFloat = 28
-    /// 13pt 셰브론 글리프(약 7pt 폭) 양옆에 생기는 히트 영역 여백.
-    static let edgeInset: CGFloat = 10
-
-    let forward: Bool
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: forward ? "chevron.right" : "chevron.left")
-                .frame(width: Self.hitSize, height: Self.hitSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-}
-
-/// Turns scroll-wheel / trackpad events into single page steps for the Dex grid.
-/// `scrollingDeltaY` already reflects the natural-scrolling setting, so a negative delta always
-/// means "move the content up" (reveal what comes next), exactly like a list would.
-struct DexScrollPager {
-    /// Accumulated trackpad distance (pt) before a gesture flips the page.
-    static let preciseThreshold: CGFloat = 24
-
-    private var accumulated: CGFloat = 0
-    private var firedThisGesture = false
-
-    /// +1 = next page, -1 = previous page, 0 = no change.
-    mutating func step(deltaY: CGFloat, precise: Bool,
-                       phase: NSEvent.Phase, momentumPhase: NSEvent.Phase) -> Int {
-        // Wheel notch: one event per notch, one page per notch.
-        guard precise else { return Self.direction(deltaY) }
-        // The momentum tail belongs to a gesture that has already paged.
-        guard momentumPhase.isEmpty else { return 0 }
-        if phase.contains(.began) || phase.contains(.mayBegin) {
-            accumulated = 0
-            firedThisGesture = false
-        }
-        if phase.contains(.ended) || phase.contains(.cancelled) {
-            accumulated = 0
-            firedThisGesture = false
-            return 0
-        }
-        guard !firedThisGesture else { return 0 }
-        accumulated += deltaY
-        guard abs(accumulated) >= Self.preciseThreshold else { return 0 }
-        let result = Self.direction(accumulated)
-        accumulated = 0
-        // Phase-less precise devices have no gesture boundary, so only latch real gestures.
-        firedThisGesture = !phase.isEmpty
-        return result
-    }
-
-    static func pageAfterScroll(current: Int, pageCount: Int, step: Int) -> Int {
-        min(max(0, current + step), max(0, pageCount - 1))
-    }
-
-    /// The page that shows `id` — where Back from a detail page lands. 0 when `id` is nil or
-    /// filtered out, the same page a fresh grid opens on.
-    static func page(containing id: String?, in ids: [String], pageSize: Int) -> Int {
-        guard let id, let index = ids.firstIndex(of: id) else { return 0 }
-        return index / pageSize
-    }
-
-    private static func direction(_ deltaY: CGFloat) -> Int {
-        deltaY < 0 ? 1 : (deltaY > 0 ? -1 : 0)
-    }
-}
-
-/// Background view that feeds scroll events over its bounds to `onStep`. A local monitor (not a
-/// `scrollWheel(with:)` override) keeps clicks and hover on the cells above it untouched.
-private struct ScrollWheelPager: NSViewRepresentable {
-    let onStep: (Int) -> Void
-
-    func makeNSView(context: Context) -> PagerView { PagerView() }
-    func updateNSView(_ view: PagerView, context: Context) { view.onStep = onStep }
-
-    final class PagerView: NSView {
-        var onStep: ((Int) -> Void)?
-        private var pager = DexScrollPager()
-        private var monitor: Any?
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
-            guard window != nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                guard let self, let window = self.window, event.window === window,
-                      self.bounds.contains(self.convert(event.locationInWindow, from: nil))
-                else { return event }
-                let step = self.pager.step(deltaY: event.scrollingDeltaY,
-                                           precise: event.hasPreciseScrollingDeltas,
-                                           phase: event.phase, momentumPhase: event.momentumPhase)
-                if step != 0 { self.onStep?(step) }
-                return nil
-            }
-        }
-    }
-}
-
-/// 도감 — 보유 종만 도감 번호순으로, 한 페이지 16칸(4열×4행) 고정 격자.
+/// 도감 — 보유 종을 4열 세로 스크롤 격자로, 진화 가족마다 줄을 끊는다.
 @MainActor
 private struct DexGridView: View {
     let store: CompanionStore
@@ -1332,21 +1244,18 @@ private struct DexGridView: View {
     let onSelectSpecies: (CompanionStore.DexSpecies) -> Void
     let onResetFilters: () -> Void
 
-    /// nil = the page that shows `returnAnchor` (Back from a detail page). Paging or filtering sets it.
-    @State private var page: Int?
-    /// The species whose detail page was just closed. Only picks the page; nothing is selected.
-    /// State, not a `let`: the parent clears its copy once the grid appears, which must not move the page.
+    /// The species whose detail page was just closed. Scrolled into view once; nothing is selected.
+    /// State, not a `let`: the parent clears its copy once the grid appears, which must not lose it.
     @State private var returnAnchor: String?
+    /// The species Back is restoring. Kept until the user scrolls (same settle as the catch log).
+    @State private var settleAnchor: String?
+    @State private var position = ScrollPosition(idType: String.self)
     /// 선택한 칸 — 하단 줄에 희귀도를 띄우고, 이로치를 잡은 종이면 스프라이트를 그 색으로 바꾼다.
     @State private var selectedID: String?
 
     private static let columns = 4
-    private static let rows = 4
-    private static let pageSize = columns * rows      // 16
     private static let spacing: CGFloat = 4
 
-    /// `returnAnchor` = the species whose detail page was just closed. The grid opens on its page,
-    /// set here rather than in `onAppear`, which would flash page 1 for a frame first.
     init(store: CompanionStore, searchText: String, shinyOnly: Bool,
          sortOption: CompanionStore.DexSortOption, selectedRarity: Binding<Rarity?>,
          returnAnchor: String?,
@@ -1370,29 +1279,20 @@ private struct DexGridView: View {
             shinyOnly: shinyOnly,
             sort: sortOption
         )
-        let pageCount = max(1, (visible.count + Self.pageSize - 1) / Self.pageSize)
-        let current = min(page ?? DexScrollPager.page(containing: returnAnchor, in: visible.map(\.collectionID),
-                                                      pageSize: Self.pageSize),
-                          pageCount - 1)
-        let slice = Array(visible.dropFirst(current * Self.pageSize).prefix(Self.pageSize))
 
         VStack(alignment: .leading, spacing: 6) {
             header(all)
             if visible.isEmpty {
                 emptySearchResults
             } else {
-                grid(slice)
-                    .background(ScrollWheelPager { step in
-                        let next = DexScrollPager.pageAfterScroll(current: current, pageCount: pageCount, step: step)
-                        if next != current { page = next; selectedID = nil }
-                    })
-                footer(slice, current: current, pageCount: pageCount)
+                grid(store.dexFamilyRows(visible, columns: Self.columns))
+                footer(visible)
             }
         }
-        .onChange(of: searchText) { page = 0; selectedID = nil }
-        .onChange(of: shinyOnly) { page = 0; selectedID = nil }
-        .onChange(of: sortOption) { page = 0; selectedID = nil }
-        .onChange(of: selectedRarity) { page = 0; selectedID = nil }
+        .onChange(of: searchText) { selectedID = nil }
+        .onChange(of: shinyOnly) { selectedID = nil }
+        .onChange(of: sortOption) { selectedID = nil }
+        .onChange(of: selectedRarity) { selectedID = nil }
         .task { await store.backfillMissingDexNames() }
     }
 
@@ -1430,7 +1330,6 @@ private struct DexGridView: View {
                         Button {
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 selectedRarity = (selectedRarity == r) ? nil : r
-                                page = 0
                                 selectedID = nil
                             }
                         } label: {
@@ -1450,40 +1349,68 @@ private struct DexGridView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func grid(_ slice: [CompanionStore.DexSpecies]) -> some View {
-        let formCounts = Dictionary(uniqueKeysWithValues: slice.lazy
+    private func grid(_ rows: [[CompanionStore.DexSpecies]]) -> some View {
+        let formCounts = Dictionary(uniqueKeysWithValues: rows.joined().lazy
             .filter { PokemonForm.hasForms(speciesID: $0.id) }
             .map { ($0.id, store.state.collectedForms(speciesID: $0.id).count) })
-        return VStack(spacing: Self.spacing) {
-            ForEach(0..<Self.rows, id: \.self) { row in
-                HStack(spacing: Self.spacing) {
-                    ForEach(0..<Self.columns, id: \.self) { col in
-                        let i = row * Self.columns + col
-                        if i < slice.count {
-                            let sp = slice[i]
-                            DexSpeciesCell(store: store, species: sp,
-                                           isSelected: selectedID == sp.collectionID,
-                                           isRepresentative: store.isRepresentative(sp),
-                                           formCount: formCounts[sp.id]) {
-                                selectedID = sp.collectionID
-                                onSelectSpecies(sp)
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: Self.spacing) {
+                    Color.clear.frame(height: 0).id("dexGridTop")
+                    ForEach(rows, id: \.first!.collectionID) { row in
+                        HStack(spacing: Self.spacing) {
+                            ForEach(0..<Self.columns, id: \.self) { col in
+                                if col < row.count {
+                                    let sp = row[col]
+                                    DexSpeciesCell(store: store, species: sp,
+                                                   isSelected: selectedID == sp.collectionID,
+                                                   isRepresentative: store.isRepresentative(sp),
+                                                   formCount: formCounts[sp.id]) {
+                                        selectedID = sp.collectionID
+                                        onSelectSpecies(sp)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .id(sp.collectionID)
+                                } else {
+                                    Color.clear.frame(maxWidth: .infinity)
+                                }
                             }
-                            .frame(maxWidth: .infinity)
-                        } else {
-                            Color.clear.frame(maxWidth: .infinity)
                         }
                     }
                 }
-                .frame(maxHeight: .infinity)
+                .reservesScrollerLane()
             }
+            .scrollPosition($position)
+            .frame(maxHeight: .infinity)
+            .task {
+                guard let anchor = returnAnchor else { return }
+                returnAnchor = nil
+                settleAnchor = anchor
+                position.scrollTo(id: anchor, anchor: .center)
+            }
+            // Same settle as the catch log: re-scroll as the lazy rows the first pass revealed get measured.
+            .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
+                if let settleAnchor { position.scrollTo(id: settleAnchor, anchor: .center) }
+            }
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting { settleAnchor = nil }
+            }
+            // 필터·검색·정렬 변경 시 새 결과를 처음부터 보여준다.
+            .onChange(of: searchText) { scrollToTop(proxy) }
+            .onChange(of: shinyOnly) { scrollToTop(proxy) }
+            .onChange(of: sortOption) { scrollToTop(proxy) }
+            .onChange(of: selectedRarity) { scrollToTop(proxy) }
         }
-        .frame(maxHeight: .infinity)
     }
 
-    private func footer(_ slice: [CompanionStore.DexSpecies],
-                        current: Int, pageCount: Int) -> some View {
+    private func scrollToTop(_ proxy: ScrollViewProxy) {
+        settleAnchor = nil
+        proxy.scrollTo("dexGridTop", anchor: .top)
+    }
+
+    private func footer(_ visible: [CompanionStore.DexSpecies]) -> some View {
         HStack(spacing: 8) {
-            if let sel = slice.first(where: { $0.collectionID == selectedID }) {
+            if let sel = visible.first(where: { $0.collectionID == selectedID }) {
                 // 칸은 번호·스프라이트·이름만 보여주므로 희귀도가 선택으로 얻는 정보다.
                 Text("#\(sel.id) \(sel.name) · \(store.l.rarityLabel(sel.rarity))")
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
@@ -1496,25 +1423,6 @@ private struct DexGridView: View {
                 }
             }
             Spacer(minLength: 4)
-            if pageCount > 1 {
-                // 넓힌 히트 영역의 여백이 곧 셰브론↔숫자 간격이다. 바깥 음수 패딩으로 글리프를
-                // 원래 자리(우측 끝)에 두고, 넘친 히트 영역은 팝오버 여백 쪽으로 뻗게 한다.
-                HStack(spacing: 0) {
-                    DexPageButton(forward: false, label: store.l.dexPagePrev) {
-                        page = max(0, current - 1); selectedID = nil
-                    }
-                    .disabled(current == 0)
-                    Text("\(current + 1) / \(pageCount)")
-                        .font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel(store.l.dexPageLabel(current + 1, pageCount))
-                    DexPageButton(forward: true, label: store.l.dexPageNext) {
-                        page = min(pageCount - 1, current + 1); selectedID = nil
-                    }
-                    .disabled(current == pageCount - 1)
-                }
-                .padding(.horizontal, -DexPageButton.edgeInset)
-            }
         }
         .font(.system(size: 13, weight: .semibold))
         .frame(height: 18)
@@ -2020,11 +1928,23 @@ private struct DexEntryRow: View {
 
     /// 카드 안쪽 여백. 진화 라인이 쓸 수 있는 폭 계산과 단일 소스를 공유한다.
     private static let cardPadding: CGFloat = 8
+    /// 첫 스프라이트를 카드 왼쪽 가장자리에서 띄우는 추가 여백.
+    private static let lineLeadingInset: CGFloat = 10
 
     var body: some View {
         // 저장분 우선(즉시·언어대응), 없으면 async 로 채운 resolved 사용.
         let names = store.dexStoredChainNames(entry) ?? (resolved.isEmpty ? nil : resolved)
-        VStack(alignment: .leading, spacing: 3) {
+        // 뱃지는 따로 한 줄을 쓰지 않고 진화 라인 좌상단(스프라이트 위 여백)에 겹친다.
+        ZStack(alignment: .topLeading) {
+            EvoLineView(nodes: entry.chainOrder.map { EvoLineItem(.species($0), .done) },
+                        mysteryLabel: store.l.unknownNextEvolution, language: store.language, thumb: 68,
+                        shiny: entry.isShiny, names: names,
+                        maxWidth: PopoverMetrics.scrollContentWidth - Self.cardPadding * 2 - Self.lineLeadingInset,
+                        form: entry.form,
+                        nameFontSize: 11, nameLineLimit: 2, nameMinimumScaleFactor: 1,
+                        dexLinks: dexLinks, onOpenDexEntry: onOpenDexEntry)
+                .padding(.leading, Self.lineLeadingInset)
+                .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
                 Badge(store.l.rarityLabel(entry.rarity).uppercased(), tint: .rarity(entry.rarity), size: 10)
                 if store.isActiveDexEntry(entry) {
@@ -2039,21 +1959,19 @@ private struct DexEntryRow: View {
                     Text("✨").font(.system(size: 10))
                         .accessibilityLabel(store.l.dexShinyLabel)
                 }
-                Spacer()
             }
-            EvoLineView(nodes: entry.chainOrder.map { EvoLineItem(.species($0), .done) },
-                        mysteryLabel: store.l.unknownNextEvolution, language: store.language, thumb: 68,
-                        shiny: entry.isShiny, names: names,
-                        maxWidth: PopoverMetrics.scrollContentWidth - Self.cardPadding * 2, form: entry.form,
-                        nameFontSize: 11, nameLineLimit: 2, nameMinimumScaleFactor: 1,
-                        dexLinks: dexLinks, onOpenDexEntry: onOpenDexEntry)
-            if let caughtAt = entry.caughtAt {
-                Text(caughtAt, style: .relative).font(.system(size: 11)).foregroundStyle(.secondary)
-            }
+            // 겹친 뱃지가 아래 스프라이트의 도감 링크 클릭을 가로채지 않게.
+            .allowsHitTesting(false)
         }
         .padding(Self.cardPadding)
         .background(Color.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        // 도감 칸과 같은 이로치 표시 — 노란 테두리.
+        .overlay {
+            if entry.isShiny {
+                RoundedRectangle(cornerRadius: 10).strokeBorder(.yellow, lineWidth: 1.5)
+            }
+        }
         .task(id: "\(entry.id)-\(store.language.rawValue)") {
             resolved = await store.dexResolveChainNames(entry)
         }

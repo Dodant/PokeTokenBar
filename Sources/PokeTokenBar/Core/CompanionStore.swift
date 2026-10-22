@@ -461,6 +461,38 @@ final class CompanionStore {
         dexSpecies.reduce(into: [:]) { links, species in links[species.id] = species.collectionID }
     }
 
+    /// speciesID → 진화 가족(체인 첫 종 id).
+    /// 체인은 PokéAPI 진화 트리의 뿌리에서 시작하므로, 갈래 진화(이브이 등)도 같은 첫 종으로 묶인다.
+    private var dexFamilyIDs: [Int: Int] {
+        let chains = state.dex.map(\.chainOrder) + (state.active.map { [$0.pathIDs] } ?? [])
+        var families: [Int: Int] = [:]
+        for chain in chains {
+            guard let root = chain.first else { continue }
+            for id in chain { families[id] = root }
+        }
+        return families
+    }
+
+    /// 도감 격자의 줄 — 진화 가족마다 새 줄에서 시작하고, 한 줄(`columns`)을 넘는 가족은 다음 줄로
+    /// 이어 접는다. 가족은 그 가족의 첫 종이 정렬상 나온 자리에 놓인다.
+    func dexFamilyRows(_ species: [DexSpecies], columns: Int) -> [[DexSpecies]] {
+        let families = dexFamilyIDs
+        var groups: [[DexSpecies]] = []
+        var groupIndex: [Int: Int] = [:]
+        for sp in species {
+            let family = families[sp.id] ?? sp.id
+            if let i = groupIndex[family] {
+                groups[i].append(sp)
+            } else {
+                groupIndex[family] = groups.count
+                groups.append([sp])
+            }
+        }
+        return groups.flatMap { group in
+            stride(from: 0, to: group.count, by: columns).map { Array(group[$0..<min($0 + columns, group.count)]) }
+        }
+    }
+
     /// Collected form summaries for the detail picker; missing forms remain visible but disabled.
     func formSpecies(speciesID: Int) -> [DexSpecies] {
         guard PokemonForm.hasForms(speciesID: speciesID) else { return [] }

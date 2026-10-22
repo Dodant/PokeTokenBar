@@ -92,6 +92,21 @@ final class DexSearchAndFilterTests: XCTestCase {
     }
 
     /// An egg has no species, so the Home header sprite gets no link target.
+    /// Each evolution family starts its own grid row and wraps past `columns`. Eevee's branches share
+    /// one family, so #196/#197 follow #136 ahead of #150 even though number order puts #150 first.
+    func testDexFamilyRowsBreakPerFamilyAndWrap() {
+        let eevee = [134, 135, 136, 196, 197].map {
+            DexEntry(id: "eevee-\($0)", baseID: 133, finalID: $0, chainOrder: [133, $0],
+                     rarity: .rare, caughtAt: now)
+        }
+        let raising = MonState(baseID: 4, pathIDs: [4, 5], plannedPathIDs: [4, 5, 6], stageIndex: 1,
+                               usedAtStage: 0, rarity: .common, totalForms: 3)
+        let store = makeStore(dex: createTestStore().state.dex + eevee, active: raising)
+
+        let rows = store.dexFamilyRows(store.filteredDexSpecies(), columns: 4).map { $0.map(\.id) }
+        XCTAssertEqual(rows, [[1, 2, 3], [4, 5], [25, 26], [133, 134, 135, 136], [196, 197], [150]])
+    }
+
     func testEggHasNoDexLinkTarget() {
         let store = makeStore(dex: createTestStore().state.dex)
         XCTAssertTrue(store.isEgg)

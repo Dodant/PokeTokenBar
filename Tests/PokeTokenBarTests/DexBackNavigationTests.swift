@@ -22,13 +22,13 @@ final class DexBackNavigationTests: XCTestCase {
         window = nil
     }
 
-    /// 20 species = 2 grid pages: Mon1…Mon16, then Mon17…Mon20.
+    /// 40 single-species families = 40 grid rows (one family per row); Mon38 needs scrolling.
     private func makeStore() throws -> CompanionStore {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("dex-back-\(UUID()).json")
         addTeardownBlock { try? FileManager.default.removeItem(at: file) }
         var state = CompanionState()
         state.language = .en
-        state.dex = (1...20).map { id in
+        state.dex = (1...40).map { id in
             DexEntry(id: "entry-\(id)", baseID: id, finalID: id, chainOrder: [id], rarity: .common,
                      caughtAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(id)),
                      names: [id: ["en": "Mon\(id)"]])
@@ -55,8 +55,7 @@ final class DexBackNavigationTests: XCTestCase {
 
     // MARK: Rendered text (the accessibility tree stays empty without an AX client)
 
-    /// `candidates`: Vision's top readings. The pager's "2/2" still reads as "212", so tests check
-    /// which species a page shows instead.
+    /// `candidates`: Vision's top readings.
     private struct Word {
         let candidates: [String]
         let box: CGRect   // normalized, y-up
@@ -144,59 +143,59 @@ final class DexBackNavigationTests: XCTestCase {
         XCTFail("Pressing \(text) never changed the screen", file: file, line: line)
     }
 
-    /// Opens #18 (page 2) the way Home's sprite does, then presses the detail page's Back.
-    private func openPageTwoSpeciesAndGoBack(_ store: CompanionStore, _ navigation: PopoverNavigation,
+    /// Opens #38 (scrolled off) the way Home's sprite does, then presses the detail page's Back.
+    private func openScrolledOffSpeciesAndGoBack(_ store: CompanionStore, _ navigation: PopoverNavigation,
                                              _ host: NSView) async throws {
-        let species = try XCTUnwrap(store.dexSpecies.first { $0.id == 18 })
+        let species = try XCTUnwrap(store.dexSpecies.first { $0.id == 38 })
         navigation.dexDetailCollectionID = species.collectionID
         try await press(store.l.back, in: host)
     }
 
     // MARK: Pokédex grid
 
-    func testBackFromDetailReturnsToThePageOfThatSpecies() async throws {
+    func testBackFromDetailScrollsToThatSpecies() async throws {
         let store = try makeStore()
         let navigation = PopoverNavigation()
         navigation.tab = .collection
         let root = host(store, navigation)
-        try await waitForText("Mon5", in: root)
+        try await waitForText("Mon2", exactly: true, in: root)
 
-        try await openPageTwoSpeciesAndGoBack(store, navigation, root)
+        try await openScrolledOffSpeciesAndGoBack(store, navigation, root)
 
-        try await waitForText("Mon20", in: root)
-        // Only the page comes back: the species is not selected, so the footer does not name it.
+        try await waitForText("Mon38", in: root)
+        // Only the position comes back: the species is not selected, so the footer does not name it.
         let footer = try words(in: root).filter { $0.box.midY < 0.05 }   // y-up: the bottom strip
-        XCTAssertFalse(footer.contains { $0.reads("Mon18", exactly: false) }, "Seen: \(footer.map(\.candidates))")
+        XCTAssertFalse(footer.contains { $0.reads("Mon38", exactly: false) }, "Seen: \(footer.map(\.candidates))")
     }
 
-    func testReturnPageIsUsedOnlyOnce() async throws {
+    func testReturnAnchorIsUsedOnlyOnce() async throws {
         let store = try makeStore()
         let navigation = PopoverNavigation()
         navigation.tab = .collection
         let root = host(store, navigation)
-        try await openPageTwoSpeciesAndGoBack(store, navigation, root)
-        try await waitForText("Mon20", in: root)
+        try await openScrolledOffSpeciesAndGoBack(store, navigation, root)
+        try await waitForText("Mon38", in: root)
 
         navigation.showingCollectionLog = true
         try await Task.sleep(for: .milliseconds(100))
         navigation.showingCollectionLog = false
 
-        try await waitForText("Mon5", in: root)
+        try await waitForText("Mon2", exactly: true, in: root)
     }
 
-    /// Back to the log must not leave the grid's return page behind for the next segment switch.
-    func testBackToTheLogLeavesTheGridOnItsFirstPage() async throws {
+    /// Back to the log must not leave the grid's return anchor behind for the next segment switch.
+    func testBackToTheLogLeavesTheGridAtTheTop() async throws {
         let store = try makeStore()
         let navigation = PopoverNavigation()
         navigation.tab = .collection
         navigation.showingCollectionLog = true
         let root = host(store, navigation)
-        try await openPageTwoSpeciesAndGoBack(store, navigation, root)
-        try await waitForText("Mon20", in: root)   // the log's top row
+        try await openScrolledOffSpeciesAndGoBack(store, navigation, root)
+        try await waitForText("Mon40", in: root)   // the log's top row
 
         navigation.showingCollectionLog = false
 
-        try await waitForText("Mon5", in: root)
+        try await waitForText("Mon2", exactly: true, in: root)
     }
 
     // MARK: Catch log
@@ -208,7 +207,7 @@ final class DexBackNavigationTests: XCTestCase {
         navigation.tab = .collection
         navigation.showingCollectionLog = true
         let root = host(store, navigation)
-        try await waitForText("Mon20", in: root)
+        try await waitForText("Mon40", in: root)
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         let log = try XCTUnwrap(descendants(root).compactMap { $0 as? NSScrollView }
             .max { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) })
@@ -227,11 +226,10 @@ final class DexBackNavigationTests: XCTestCase {
         try await press(store.l.back, in: root)
 
         try await waitForText("Mon1", exactly: true, in: root)
-
-        // Like the grid's page, the position does not survive a segment switch.
+        // Like the grid's, the position does not survive a segment switch.
         navigation.showingCollectionLog = false
         try await Task.sleep(for: .milliseconds(100))
         navigation.showingCollectionLog = true
-        try await waitForText("Mon20", in: root)
+        try await waitForText("Mon40", in: root)
     }
 }
