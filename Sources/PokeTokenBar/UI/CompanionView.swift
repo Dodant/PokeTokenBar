@@ -1907,7 +1907,7 @@ private struct DexSpeciesCell: View {
                         .overlay(alignment: .bottom) {
                             if species.isRaising { raisingBadge.fixedSize() }
                         }
-                    Text(formCount.map { "\(species.name) \($0)/\(formTotal)" } ?? species.name)
+                    Text(species.name)
                         .font(.system(size: 12))
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
@@ -1917,13 +1917,23 @@ private struct DexSpeciesCell: View {
             // Attach number and shiny markers to the full cell width.
             .overlay(alignment: .topLeading) { numberTag }
             .overlay(alignment: .topTrailing) {
-                // ✨ = 이 종의 이로치를 잡은 적이 있다는 표식.
-                if species.isShiny {
-                    Text("✨")
-                        .font(.system(size: 10))
-                        .padding(.horizontal, 2)
-                        .background(.regularMaterial, in: Capsule())
-                        .accessibilityLabel(store.l.dexShinyLabel)
+                HStack(spacing: 2) {
+                    // 수집한 폼 수 / 전체 폼 수 — 이름 옆이 아니라 우측 상단에 둔다.
+                    if let formCount {
+                        Text("\(formCount)/\(formTotal)")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 2)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    // ✨ = 이 종의 이로치를 잡은 적이 있다는 표식.
+                    if species.isShiny {
+                        Text("✨")
+                            .font(.system(size: 10))
+                            .padding(.horizontal, 2)
+                            .background(.regularMaterial, in: Capsule())
+                            .accessibilityLabel(store.l.dexShinyLabel)
+                    }
                 }
             }
             .padding(2)
