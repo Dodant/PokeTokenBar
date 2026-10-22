@@ -1223,6 +1223,9 @@ final class CompanionStore {
         guard count >= 1, count <= maxBuyCount(kind), let price = price(of: kind) else { return false }
         state.spentTokens += price * count
         state.inventory[kind.rawValue, default: 0] += count
+        // 이로치는 종과 함께 미리 뽑는다. 부적 전에 뽑은 "일반" 결과는 버려 부화가 부적 분모로 다시 굴리게
+        // 한다 — 부적이 지금 알에도 적용되고, 부화 알림의 분모가 판정과 맞는다. 이미 당첨된 이로치는 유지.
+        if kind == .shinyCharm, state.pendingShiny == false { state.pendingShiny = nil }
         save()
         return true
     }

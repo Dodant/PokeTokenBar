@@ -18,11 +18,12 @@ final class ShinyCharmTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
     /// 지갑/부적 보유를 지정한 알(active=null) 상태 스토어.
-    private func store(used: Int = 5_000_000_000, spent: Int = 0, charm: Bool = false, seed: UInt64 = 7) -> CompanionStore {
+    private func store(used: Int = 5_000_000_000, spent: Int = 0, charm: Bool = false, seed: UInt64 = 7,
+                       extra: String = "") -> CompanionStore {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("charm-\(UUID().uuidString).json")
         let inv = charm ? ",\"inventory\":{\"shinyCharm\":1}" : ""
         let json = "{\"installBaselineSet\":true,\"usedSinceInstall\":\(used),\"spentTokens\":\(spent),"
-            + "\"lastDate\":\"d\",\"active\":null,\"dex\":[],\"collectedFinals\":[]\(inv)}"
+            + "\"lastDate\":\"d\",\"active\":null,\"dex\":[],\"collectedFinals\":[]\(inv)\(extra)}"
         try? json.data(using: .utf8)!.write(to: url)
         return CompanionStore(provider: CharmStubProvider(), clock: { self.now }, fileURL: url, rng: SeededRNG(seed: seed))
     }
@@ -66,6 +67,20 @@ final class ShinyCharmTests: XCTestCase {
             let body = L(language).notifShinyDittoRevealBody("P")
             XCTAssertFalse(body.contains("64") || body.contains("48"), "\(language.rawValue): \(body)")
         }
+    }
+
+    /// [회귀] 이로치는 종과 함께 미리 뽑힌다. 그 뒤 부적을 사면 미리 뽑은 "일반" 결과를 버려 부화가
+    /// 부적 분모로 다시 굴린다(부적이 지금 알에도 적용되고, 알림 분모와 판정이 맞는다). 미리 뽑은 이로치는 유지.
+    func testBuyingCharmDropsPendingNonShinyRoll() {
+        let s = store(extra: ",\"pendingHatchID\":1,\"pendingShiny\":false")
+        XCTAssertEqual(s.state.pendingShiny, false)
+        XCTAssertTrue(s.buy(.shinyCharm))
+        XCTAssertNil(s.state.pendingShiny, "부적 구매 후 부화가 부적 분모로 다시 굴려야 한다")
+        XCTAssertEqual(s.state.pendingHatchID, 1, "종 pre-roll 은 그대로")
+
+        let shiny = store(extra: ",\"pendingHatchID\":1,\"pendingShiny\":true")
+        XCTAssertTrue(shiny.buy(.shinyCharm))
+        XCTAssertEqual(shiny.state.pendingShiny, true, "이미 당첨된 이로치는 지우지 않는다")
     }
 
     func testConstantsAndPassiveFlag() {
