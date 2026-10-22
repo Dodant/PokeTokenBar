@@ -73,7 +73,6 @@ final class ShinyCharmTests: XCTestCase {
         XCTAssertEqual(ShinyCharm.shinyDenominator, 48)
         XCTAssertTrue(ItemKind.shinyCharm.isPassive)
         XCTAssertFalse(ItemKind.rareCandy.isPassive)
-        XCTAssertFalse(ItemKind.mint.isPassive)
         XCTAssertEqual(ItemKind.shinyCharm.spriteName, "shiny-charm")
     }
 

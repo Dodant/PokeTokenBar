@@ -178,14 +178,12 @@ enum PokemonBalance {
 /// 인벤토리 아이템 종류 — 확장 대비 enum(현재 이상한 사탕 1종). rawValue 로 CompanionState.inventory 에 저장.
 enum ItemKind: String, Codable, Sendable, CaseIterable {
     case rareCandy
-    case mint
     case shinyCharm
 
     /// PokéAPI 아이템 스프라이트 파일명(.../sprites/items/{name}.png). nil = 스프라이트 없음(이모지 폴백만).
     var spriteName: String? {
         switch self {
         case .rareCandy: return "rare-candy"
-        case .mint: return nil   // PokéAPI 에 민트 스프라이트 없음(8세대 아이템) → 이모지 폴백
         case .shinyCharm: return "shiny-charm"
         }
     }
@@ -193,7 +191,6 @@ enum ItemKind: String, Codable, Sendable, CaseIterable {
     var fallbackEmoji: String {
         switch self {
         case .rareCandy: return "🍬"
-        case .mint: return "🌿"
         case .shinyCharm: return "✨"
         }
     }
@@ -201,14 +198,13 @@ enum ItemKind: String, Codable, Sendable, CaseIterable {
     var shopPrice: Int? {
         switch self {
         case .rareCandy: return RareCandy.price
-        case .mint: return Mint.price
         case .shinyCharm: return ShinyCharm.price
         }
     }
     /// 보유형(패시브) 아이템 — 소비하지 않고 보유하는 동안 상시 효과. 1회 구매(재구매 불가), 가방엔 "적용 중" 표시.
     var isPassive: Bool {
         switch self {
-        case .rareCandy, .mint: return false
+        case .rareCandy: return false
         case .shinyCharm: return true
         }
     }
@@ -227,14 +223,6 @@ enum RareCandy {
     /// 공짜 추가성장(150M 써서 250M 성장)이 된다. 500M 로 두면 그 값 모으는 500M 패시브 성장 + 사탕
     /// 100M = 실질 보너스 +20% 로 억제된다. 무료 획득(한도 100% 보상)이 항상 이득이도록 값어치보다 비싸게.
     static let price = 500_000_000
-}
-
-/// 민트 밸런스 상수.
-enum Mint {
-    /// 상점 구매가. 성격 변경은 순수 코스메틱(성장·능력치 무관)이라 밸런스 근거가 없어 "느낌" 값 —
-    /// 사탕(500M)의 1/5로 싸게 둬서 성격을 마음에 들 때까지 굴려보는 가벼운 재미. 성장을 안 줘서
-    /// 이중계산 이슈도 없음(가격 = 순수 소비).
-    static let price = 100_000_000
 }
 
 /// 이로치 부적 밸런스 상수 — 보유형(1회 구매·영구, 소비 안 됨).
@@ -391,54 +379,6 @@ struct EvoLine: Sendable {
     }
 }
 
-/// 성격 — 본가 25종. 부화 시 확정, 능력치 영향 없음(개체 아이덴티티 표시용).
-enum PokemonNature: String, Codable, Sendable, CaseIterable {
-    case hardy, lonely, brave, adamant, naughty
-    case bold, docile, relaxed, impish, lax
-    case timid, hasty, serious, jolly, naive
-    case modest, mild, quiet, bashful, rash
-    case calm, gentle, sassy, careful, quirky
-
-    /// 본가 공식 번역 명칭 (ko/en/ja/es/fr/de).
-    /// pt 만 예외 — 본가에 포르투갈어판이 없어 공식 명칭이 없다. "natureza"(여성 명사)에
-    /// 맞춘 자체 번역이며 25종이 겹치지 않게 골랐다(`testNatureNamesComplete` 가 중복·공백을 막는다).
-    /// ru 도 예외 — 성격 명칭의 공식 러시아어 출처를 찾지 못했다(본가 게임은 러시아어 미지원). 그래서 커뮤니티
-    /// 번역(러시아어 Pixelmon 위키의 характеры 표)을 기준으로 "характер"(남성 명사)에 맞춘 남성형이며, 공식 출처가
-    /// 확인되면 그쪽으로 바꾼다. 뜻이 어긋난 2종만 고쳤다:
-    /// Lax Слабый→Беспечный, Gentle Вежливый→Кроткий.
-    func name(_ lang: AppLanguage) -> String {
-        let names: (String, String, String, String, String, String, String, String)
-        switch self {
-        case .hardy:   names = ("노력", "Hardy", "がんばりや", "Fuerte", "Hardi", "Esforçada", "Robust", "Выносливый")
-        case .lonely:  names = ("외로움", "Lonely", "さみしがり", "Huraña", "Solo", "Carente", "Solo", "Одинокий")
-        case .brave:   names = ("용감", "Brave", "ゆうかん", "Audaz", "Brave", "Corajosa", "Mutig", "Храбрый")
-        case .adamant: names = ("고집", "Adamant", "いじっぱり", "Firme", "Rigide", "Teimosa", "Hart", "Непреклонный")
-        case .naughty: names = ("개구쟁이", "Naughty", "やんちゃ", "Pícara", "Mauvais", "Levada", "Frech", "Непослушный")
-        case .bold:    names = ("대담", "Bold", "ずぶとい", "Osada", "Assuré", "Ousada", "Kühn", "Смелый")
-        case .docile:  names = ("온순", "Docile", "すなお", "Dócil", "Docile", "Dócil", "Sanft", "Послушный")
-        case .relaxed: names = ("무사태평", "Relaxed", "のんき", "Plácida", "Relax", "Descontraída", "Locker", "Расслабленный")
-        case .impish:  names = ("장난꾸러기", "Impish", "わんぱく", "Agitada", "Malin", "Travessa", "Pfiffig", "Проказливый")
-        case .lax:     names = ("촐랑", "Lax", "のうてんき", "Floja", "Lâche", "Despreocupada", "Lasch", "Беспечный")
-        case .timid:   names = ("겁쟁이", "Timid", "おくびょう", "Miedosa", "Timide", "Medrosa", "Scheu", "Робкий")
-        case .hasty:   names = ("성급", "Hasty", "せっかち", "Activa", "Pressé", "Apressada", "Hastig", "Торопливый")
-        case .serious: names = ("성실", "Serious", "まじめ", "Seria", "Sérieux", "Séria", "Ernst", "Серьёзный")
-        case .jolly:   names = ("명랑", "Jolly", "ようき", "Alegre", "Jovial", "Alegre", "Froh", "Весёлый")
-        case .naive:   names = ("천진난만", "Naive", "むじゃき", "Ingenua", "Naïf", "Ingênua", "Naiv", "Наивный")
-        case .modest:  names = ("조심", "Modest", "ひかえめ", "Modesta", "Modeste", "Modesta", "Mäßig", "Скромный")
-        case .mild:    names = ("의젓", "Mild", "おっとり", "Afable", "Doux", "Meiga", "Mild", "Мягкий")
-        case .quiet:   names = ("냉정", "Quiet", "れいせい", "Mansa", "Discret", "Discreta", "Ruhig", "Тихий")
-        case .bashful: names = ("수줍음", "Bashful", "てれや", "Tímida", "Pudique", "Tímida", "Zaghaft", "Застенчивый")
-        case .rash:    names = ("덜렁", "Rash", "うっかりや", "Alocada", "Foufou", "Impulsiva", "Hitzig", "Опрометчивый")
-        case .calm:    names = ("차분", "Calm", "おだやか", "Serena", "Calme", "Calma", "Still", "Спокойный")
-        case .gentle:  names = ("얌전", "Gentle", "おとなしい", "Amable", "Gentil", "Gentil", "Zart", "Кроткий")
-        case .sassy:   names = ("건방", "Sassy", "なまいき", "Grosera", "Malpoli", "Atrevida", "Forsch", "Нахальный")
-        case .careful: names = ("신중", "Careful", "しんちょう", "Cauta", "Prudent", "Cautelosa", "Sacht", "Внимательный")
-        case .quirky:  names = ("변덕", "Quirky", "きまぐれ", "Rara", "Bizarre", "Excêntrica", "Kauzig", "Ловкий")
-        }
-        switch lang { case .ko: return names.0; case .en: return names.1; case .ja: return names.2; case .es: return names.3; case .fr: return names.4; case .pt: return names.5; case .de: return names.6; case .ru: return names.7 }
-    }
-}
-
 /// 게임 밸런스 — 개체 롤 확률.
 enum PokemonOdds {
     /// 색이 다른 포켓몬(shiny) 부화 확률 분모 — 1/64 (본가 1/4096 은 데스크톱 앱 규모에선 평생 못 봄).
@@ -459,7 +399,6 @@ struct MonState: Codable, Sendable {
     var rarity: Rarity
     var totalForms: Int
     var isShiny = false             // 부화 시 확정, 진화해도 유지
-    var nature: PokemonNature?      // 부화 시 확정 (구버전 저장은 nil)
     /// Chosen at hatch for the whole line and resolved per species (`PokemonForm.resolved`).
     var form: PokemonForm?
     /// 개체 고유 전투 프로필. 구버전 저장은 nil이며 `CompanionStore`가 한 번만 마이그레이션한다.
@@ -481,7 +420,7 @@ struct MonState: Codable, Sendable {
     }
 
     init(baseID: Int, pathIDs: [Int], plannedPathIDs: [Int]? = nil, stageIndex: Int, usedAtStage: Int,
-         rarity: Rarity, totalForms: Int, isShiny: Bool = false, nature: PokemonNature? = nil,
+         rarity: Rarity, totalForms: Int, isShiny: Bool = false,
          profile: PokemonProfile? = nil, hasGrowthBoost: Bool = false,
          dittoDisguise: Int? = nil, dittoRevealed: Bool = false, form: PokemonForm? = nil) {
         self.baseID = baseID
@@ -496,7 +435,6 @@ struct MonState: Codable, Sendable {
         self.rarity = rarity
         self.totalForms = totalForms
         self.isShiny = isShiny
-        self.nature = nature
         self.profile = profile
         self.hasGrowthBoost = hasGrowthBoost
         self.dittoDisguise = dittoDisguise
@@ -524,7 +462,6 @@ struct MonState: Codable, Sendable {
         rarity = try c.decode(Rarity.self, forKey: .rarity)
         totalForms = try c.decode(Int.self, forKey: .totalForms)
         isShiny = try c.decodeIfPresent(Bool.self, forKey: .isShiny) ?? false
-        nature = try c.decodeIfPresent(PokemonNature.self, forKey: .nature)
         // 손상된 신규 프로필 하나 때문에 기존 성장 상태 전체를 잃지 않는다. nil이면 스토어가 재마이그레이션한다.
         profile = (try? c.decodeIfPresent(PokemonProfile.self, forKey: .profile)) ?? nil
         hasGrowthBoost = try c.decodeIfPresent(Bool.self, forKey: .hasGrowthBoost) ?? false
@@ -545,7 +482,6 @@ struct DexEntry: Codable, Sendable, Identifiable {
     var rarity: Rarity
     var caughtAt: Date?
     var isShiny = false
-    var nature: PokemonNature?
     var form: PokemonForm?
     /// The individual profile at graduation/release. Nil only for pre-profile saves until migration.
     var profile: PokemonProfile?
@@ -569,7 +505,7 @@ struct DexEntry: Codable, Sendable, Identifiable {
 
     init(id: String = UUID().uuidString,
          baseID: Int, finalID: Int, chainOrder: [Int], rarity: Rarity,
-         caughtAt: Date?, isShiny: Bool = false, nature: PokemonNature? = nil,
+         caughtAt: Date?, isShiny: Bool = false,
          profile: PokemonProfile? = nil, names: [Int: [String: String]]? = nil, releasedAt: Date? = nil,
          form: PokemonForm? = nil) {
         self.id = id
@@ -579,7 +515,6 @@ struct DexEntry: Codable, Sendable, Identifiable {
         self.rarity = rarity
         self.caughtAt = caughtAt
         self.isShiny = isShiny
-        self.nature = nature
         self.profile = profile
         self.names = names
         self.namesVersion = chainOrder.allSatisfy { names?[$0]?.isEmpty == false }
@@ -598,7 +533,6 @@ struct DexEntry: Codable, Sendable, Identifiable {
         rarity = try c.decode(Rarity.self, forKey: .rarity)
         caughtAt = try c.decodeIfPresent(Date.self, forKey: .caughtAt)
         isShiny = try c.decodeIfPresent(Bool.self, forKey: .isShiny) ?? false
-        nature = try c.decodeIfPresent(PokemonNature.self, forKey: .nature)
         // 프로필만 손상되면 개체 기록은 보존하고 프로필을 다시 생성한다.
         profile = (try? c.decodeIfPresent(PokemonProfile.self, forKey: .profile)) ?? nil
         // try? — 구버전(최종체 단일 [String:String]) 형식이 남아 있어도 종별 맵 디코딩 실패 시 nil 로

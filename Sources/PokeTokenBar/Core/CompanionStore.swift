@@ -32,11 +32,6 @@ final class CompanionStore {
     /// 홈으로 재진입할 때(CompanionHeader 재마운트) @State 가 초기화돼 같은 값이 다시 떠오른다(회귀).
     func consumeCandyFeedback() { candyFeedbackAmount = 0 }
 
-    /// 민트 사용 시 "성격이 X로" 순간 표시 — 사탕 피드백과 동일 1회성 패턴(seq + consume).
-    private(set) var mintFeedbackSeq = 0
-    private(set) var mintFeedbackNature: PokemonNature?
-    func consumeMintFeedback() { mintFeedbackNature = nil }
-
     private let provider: any PokeProviding
     private var dexNameRequests: [Int: Task<EvoLine, Error>] = [:]
     private let detailProvider: (any PokemonDetailProviding)?
@@ -185,7 +180,6 @@ final class CompanionStore {
     var isHighValueCompanion: Bool {
         currentIsShiny || rarity == .legendary
     }
-    var currentNature: PokemonNature? { state.active?.nature }
     var growthMultiplier: Int? {
         state.active?.hasGrowthBoost == true ? PokemonBalance.repeatGrowthMultiplier : nil
     }
@@ -316,7 +310,6 @@ final class CompanionStore {
             rarity: active.rarity,
             caughtAt: nil,
             isShiny: currentIsShiny,   // 위장 메타몽은 리빌 전까지 이로치를 숨긴다(판정 단일 소스)
-            nature: active.nature,
             profile: active.profile,
             names: currentLine.map { line in
                 Dictionary(uniqueKeysWithValues:
@@ -347,7 +340,6 @@ final class CompanionStore {
             rarity: a.rarity,
             caughtAt: now,
             isShiny: currentIsShiny,
-            nature: a.nature,
             profile: a.profile,
             names: currentLine.map { line in
                 Dictionary(uniqueKeysWithValues:
@@ -1031,7 +1023,7 @@ final class CompanionStore {
         state.dex.append(DexEntry(id: a.profile?.instanceID ?? UUID().uuidString,
                                   baseID: a.baseID, finalID: finalID,
                                   chainOrder: a.pathIDs, rarity: a.rarity, caughtAt: clock(),
-                                  isShiny: a.isShiny, nature: a.nature,
+                                  isShiny: a.isShiny,
                                   profile: a.profile,
                                   names: currentLine.map { line in   // 체인 각 종의 다국어 이름 저장(표시 즉시)
                                       Dictionary(uniqueKeysWithValues:
@@ -1147,28 +1139,6 @@ final class CompanionStore {
         if state.active == nil { return .graduated }
         if state.active!.stageIndex > beforeStage { return .evolved }
         return .progressed
-    }
-
-    // MARK: 민트 (성격 랜덤 재설정)
-
-    /// 민트 사용 가능 — 활성 포켓몬 + 재고>0. 성격은 MonState 에만 있어 진화 라인 로딩과 무관하다
-    /// (사탕과 달리 currentLine 조건 없음 — 재시작 직후·오프라인에도 사용 가능).
-    var canUseMint: Bool { hasActive && itemCount(.mint) > 0 }
-
-    /// 민트 1개 사용 — 현재 포켓몬 성격을 '현재와 다른' 무작위 성격으로 교체(반드시 바뀐다). 성장·shiny·
-    /// 종·usedAtStage·통계 전부 무관(순수 코스메틱). 사용 불가면 nil(무소모). 바뀐 성격을 반환(피드백용).
-    @discardableResult
-    func useMint() -> PokemonNature? {
-        guard canUseMint, state.active != nil else { return nil }
-        let cur = state.active!.nature
-        let pool = PokemonNature.allCases.filter { $0 != cur }   // cur=nil(구버전 개체)이면 25종 전체
-        let new = pool[Int(rng.next() % UInt64(pool.count))]
-        state.active!.nature = new
-        state.inventory[ItemKind.mint.rawValue] = itemCount(.mint) - 1
-        mintFeedbackNature = new
-        mintFeedbackSeq += 1
-        save()
-        return new
     }
 
     // MARK: 상점 (재화 = 사용한 토큰)
@@ -1653,11 +1623,10 @@ final class CompanionStore {
         let overflow = max(0, state.eggUsage - eggHatchThreshold)
         state.eggUsage = 0
         state.eggTier = nil   // 보증은 이 부화로 소비된다(다음 알은 다시 무보증)
-        // 개체 롤 — shiny(1/64, 부적 1/48)·성격(25종)은 부화 순간 확정, 진화해도 유지.
+        // 개체 롤 — shiny(1/64, 부적 1/48)는 부화 순간 확정, 진화해도 유지.
         // 알림 문구는 이 판정과 같은 분모를 보여준다.
         let shinyOdds = shinyDenominator
         let isShiny = Self.rollsShiny(roll: rng.next(), charmOwned: ownsShinyCharm)
-        let nature = PokemonNature.allCases[Int(rng.next() % UInt64(PokemonNature.allCases.count))]
         // 메타몽 위장 롤 — common·≥2형태에 한해 1/128. .app 게이트(&& 단락 → 비앱에선 rng 미소비로
         // 기존 테스트 RNG 시퀀스 무영향). 위장/리빌 로직은 상태 기반으로 별도 테스트한다.
         var dittoDisguise: Int?
@@ -1675,7 +1644,7 @@ final class CompanionStore {
         activeGeneration += 1
         state.active = MonState(baseID: line.baseID, pathIDs: [line.baseID], plannedPathIDs: evolutionPlan,
                                 stageIndex: 0, usedAtStage: 0, rarity: line.rarity, totalForms: evolutionPlan.count,
-                                isShiny: isShiny, nature: nature, profile: profile, hasGrowthBoost: hasGrowthBoost,
+                                isShiny: isShiny, profile: profile, hasGrowthBoost: hasGrowthBoost,
                                 dittoDisguise: dittoDisguise, form: form)
         AppLog.write("hatch: base=\(line.baseID) rarity=\(line.rarity) shiny=\(isShiny) forms=\(evolutionPlan.count) boost=\(hasGrowthBoost) ditto=\(dittoDisguise != nil)")
         let name = formDisplayName(line.localizedName(line.baseID, state.language),
@@ -1694,7 +1663,7 @@ final class CompanionStore {
     }
 
     /// 위장 → 리빌: 진화 못 하는 메타몽이 "첫 진화 임계"에서 진화 대신 정체를 드러내는 순간.
-    /// Ditto 라인 로드 후 상태 변환(rare·단일형태·초과분 이월, isShiny/nature 유지) + 연출·알림.
+    /// Ditto 라인 로드 후 상태 변환(rare·단일형태·초과분 이월, isShiny 유지) + 연출·알림.
     private func revealDitto() async {
         guard let a = state.active, a.dittoDisguise != nil, !a.dittoRevealed, !isRevealingDitto else { return }
         let generation = activeGeneration
@@ -1711,7 +1680,7 @@ final class CompanionStore {
         guard m.usedAtStage >= latestFirstEvoThr else { return }
         let disguiseName = currentLine?.localizedName(m.baseID, state.language) ?? "#\(m.baseID)"
         let carryOver = max(0, m.usedAtStage - latestFirstEvoThr)   // 위장체 첫 진화 초과분 → 메타몽 성장 이월
-        // 메타몽으로 전환 — rarity/forms 는 로드한 라인에서, isShiny/nature/dittoDisguise 는 유지.
+        // 메타몽으로 전환 — rarity/forms 는 로드한 라인에서, isShiny/dittoDisguise 는 유지.
         let previousRarity = m.rarity
         m.baseID = dittoLine.baseID
         let evolutionPlan = makeEvolutionPlan(from: dittoLine.tree, baseID: dittoLine.baseID)
@@ -1879,10 +1848,9 @@ final class CompanionStore {
         eventUntil = nil
         celebration = nil
         isHatchRetryDelayed = false
-        // 이전 개체 기준의 1회성 피드백(사탕 +XP·민트 성격)도 비운다 — 안 비우면 불러온 직후 남의
+        // 이전 개체 기준의 1회성 피드백(사탕 +XP)도 비운다 — 안 비우면 불러온 직후 남의
         // 개체에 대한 "+XP" 가 새 개체 위에 떠오른다.
         candyFeedbackAmount = 0
-        mintFeedbackNature = nil
         displayState = state.active != nil ? .idle : .egg
         migratePokemonProfilesIfNeeded()
         save()

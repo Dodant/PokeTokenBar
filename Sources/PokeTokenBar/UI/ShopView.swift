@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 상점 — 사용한 토큰(재화 = usedSinceInstall − spentTokens)으로 아이템 구매(이상한 사탕·민트).
+/// 상점 — 사용한 토큰(재화 = usedSinceInstall − spentTokens)으로 아이템 구매(이상한 사탕·이로치 부적).
 /// 인라인 확인(버튼 morph) — .sheet/.alert 금지(BagView 주석과 동일: transient 팝오버가 닫힐 때
 /// 고아 시트가 이후 클릭을 먹통내는 결함 회피).
 @MainActor
@@ -47,7 +47,7 @@ struct ShopView: View {
     }
 }
 
-/// 상점 아이템 1장 — 아이콘·이름·설명(사탕 XP / 민트 "성격 랜덤 변경")·보유수 + 가격/구매(인라인 확인).
+/// 상점 아이템 1장 — 아이콘·이름·설명(사탕 XP 등)·보유수 + 가격/구매(인라인 확인).
 /// kind 별 store.canBuy(kind)/buy(kind:count:) 로 일반화 — 판매 목록은 store.purchasableItems.
 /// 소모품은 수량 Stepper(가방의 사탕 일괄 사용과 같은 패턴)로 잔액 한도까지 한 번에 산다.
 @MainActor

@@ -270,7 +270,6 @@ final class DittoRevealTests: XCTestCase {
         XCTAssertEqual(revealed.dittoDisguise, 206)
         XCTAssertTrue(revealed.dittoRevealed)
         XCTAssertTrue(revealed.isShiny)
-        XCTAssertEqual(revealed.nature, .timid)
         XCTAssertFalse(s.state.dex.contains { $0.finalID == 206 }, "위장체를 졸업 처리하면 안 된다")
         XCTAssertFalse(s.state.collectedFinals.contains("206:206"))
     }
@@ -284,7 +283,7 @@ final class DittoRevealTests: XCTestCase {
         var seed: UInt64?
         for candidate: UInt64 in 0..<100_000 {
             var rng = SeededRNG(seed: candidate)
-            _ = rng.next(); _ = rng.next()
+            _ = rng.next()   // shiny
             if rng.next() % PokemonOdds.dittoDisguiseDenominator == 0 { seed = candidate; break }
         }
         let selectedSeed = try XCTUnwrap(seed)
