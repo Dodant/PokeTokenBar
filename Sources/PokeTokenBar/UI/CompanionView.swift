@@ -1903,10 +1903,6 @@ private struct DexSpeciesCell: View {
                     SpriteView(speciesID: species.id, size: Self.thumb,
                                shiny: formCount == nil && species.isShiny)
                         .frame(width: Self.thumb, height: Self.thumb)
-                        // Keep the raising badge over the sprite to leave room for the name.
-                        .overlay(alignment: .bottom) {
-                            if species.isRaising { raisingBadge.fixedSize() }
-                        }
                     Text(species.name)
                         .font(.system(size: 12))
                         .lineLimit(2)
@@ -1942,10 +1938,11 @@ private struct DexSpeciesCell: View {
             .background(isRepresentative ? Color.accentColor.opacity(0.16)
                                          : Color.secondary.opacity(isSelected ? 0.16 : 0.06))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            // 키우는 중 = 파란 테두리(태그 대신), 방금 클릭한 칸 = accent 테두리.
             .overlay {
-                if isSelected {
+                if species.isRaising || isSelected {
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                        .strokeBorder(species.isRaising ? Color.blue : Color.accentColor, lineWidth: 1.5)
                 }
             }
             // 호버 = 클릭 가능 피드백. 확대는 격자 간격 안에 머무는 폭으로만.
@@ -1998,13 +1995,6 @@ private struct DexSpeciesCell: View {
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(rarityColor(species.rarity))
             .padding(.horizontal, 2)
-            .background(.regularMaterial, in: Capsule())
-    }
-
-    /// "키우는 중"은 현재 개체의 현재 형태 한 칸에만 표시한다. accent 틴트는 반투명이라
-    /// 스프라이트가 비치므로 material 을 한 겹 깔아 대비를 확보한다(로그는 카드 배경 위라 불필요).
-    private var raisingBadge: some View {
-        Badge(store.l.dexRaising.uppercased(), tint: .accent, style: .tinted, size: 10)
             .background(.regularMaterial, in: Capsule())
     }
 
