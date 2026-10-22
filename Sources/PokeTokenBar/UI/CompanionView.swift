@@ -1919,20 +1919,29 @@ private struct DexSpeciesCell: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 1) {
-                // 이로치를 잡은 종은 이로치 스프라이트로 표시한다(상세 화면에서 일반/이로치 모습 전환 가능).
-                // 폼이 있는 종의 아이콘은 기본 폼 일반색으로 유지하고, 폼별 색은 상세 화면에서 보여준다.
-                SpriteView(speciesID: species.id, size: Self.thumb,
-                           shiny: formCount == nil && species.isShiny)
-                    .frame(width: Self.thumb, height: Self.thumb)
-                    // Keep the raising badge over the sprite to leave room for the name.
-                    .overlay(alignment: .bottom) {
-                        if species.isRaising { raisingBadge.fixedSize() }
-                    }
-                Text(formCount.map { "\(species.name) \($0)/\(formTotal)" } ?? species.name)
-                    .font(.system(size: 12))
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.center)
+            // The hidden copy reserves a two-line name so every cell keeps the same height; the
+            // visible stack is centered in it, so a one-line name no longer leaves the cell top-heavy.
+            ZStack {
+                VStack(spacing: 1) {
+                    Color.clear.frame(width: Self.thumb, height: Self.thumb)
+                    Text(" ").font(.system(size: 12)).lineLimit(2, reservesSpace: true)
+                }
+                .hidden()
+                VStack(spacing: 1) {
+                    // 이로치를 잡은 종은 이로치 스프라이트로 표시한다(상세 화면에서 일반/이로치 모습 전환 가능).
+                    // 폼이 있는 종의 아이콘은 기본 폼 일반색으로 유지하고, 폼별 색은 상세 화면에서 보여준다.
+                    SpriteView(speciesID: species.id, size: Self.thumb,
+                               shiny: formCount == nil && species.isShiny)
+                        .frame(width: Self.thumb, height: Self.thumb)
+                        // Keep the raising badge over the sprite to leave room for the name.
+                        .overlay(alignment: .bottom) {
+                            if species.isRaising { raisingBadge.fixedSize() }
+                        }
+                    Text(formCount.map { "\(species.name) \($0)/\(formTotal)" } ?? species.name)
+                        .font(.system(size: 12))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
             }
             .frame(maxWidth: .infinity)
             // Attach number and shiny markers to the full cell width.
