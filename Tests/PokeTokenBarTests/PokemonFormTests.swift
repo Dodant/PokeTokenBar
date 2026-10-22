@@ -69,7 +69,7 @@ final class PokemonFormTests: XCTestCase {
 
     private func burmy(_ path: [Int], form: PokemonForm?, shiny: Bool = false) -> DexEntry {
         DexEntry(baseID: 412, finalID: path.last!, chainOrder: path, rarity: .common, caughtAt: now,
-                 isShiny: shiny, nature: .brave, form: form)
+                 isShiny: shiny, form: form)
     }
 
     // MARK: Catalog

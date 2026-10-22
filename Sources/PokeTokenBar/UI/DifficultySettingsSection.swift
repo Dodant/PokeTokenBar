@@ -32,52 +32,62 @@ struct DifficultySettingsSection: View {
         _draft = State(initialValue: draft ?? DifficultyDraft(companion: companion))
     }
 
+    /// A Form section: inside SettingsView's grouped Form the section draws the one card.
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(l.difficultySectionTitle)
-                .font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
-                .textCase(.uppercase).padding(.leading, 4)
-            VStack(spacing: 0) {
-                row(l.difficultyGrowthLabel, value: $draft.growth, low: l.difficultyGrowthLowLabel, high: l.difficultyGrowthHighLabel)
-                Divider()
-                row(l.difficultyShopLabel, value: $draft.shop, low: l.difficultyShopLowLabel, high: l.difficultyShopHighLabel)
-            }
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
+        Section(l.difficultySectionTitle) {
+            row(l.difficultyGrowthLabel, value: $draft.growth, low: l.difficultyGrowthLowLabel, high: l.difficultyGrowthHighLabel)
+            row(l.difficultyShopLabel, value: $draft.shop, low: l.difficultyShopLowLabel, high: l.difficultyShopHighLabel)
             if draft.differs(from: companion) {
                 HStack {
                     Spacer()
                     Button(l.save) { draft.save(to: companion) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.glassProminent)
                         .accessibilityIdentifier("saveDifficulty")
                 }
             }
         }
     }
 
+    /// Tick marks: both ends, the 100% default, and the halfway multipliers between them.
+    private static let tickDifficulties: [Double] = [0.1, 0.25, 0.5, 1, 2]
+
     private func row(_ label: String, value: Binding<Double>, low: String, high: String) -> some View {
-        VStack(spacing: 2) {
-            HStack(spacing: 10) {
-                Text(label).font(.callout).frame(width: 76, alignment: .leading)
+        // Name and value line up with the slider's center, not with the low/high labels below it.
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(label)
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] }
+                .frame(width: 76, alignment: .leading)
+            // Slider and its low/high labels share one column, so the labels sit exactly under its ends.
+            VStack(spacing: 2) {
                 Slider(value: Binding(
                     get: { PokemonBalance.difficultyPosition(value.wrappedValue) },
-                    set: { value.wrappedValue = PokemonBalance.difficulty(atPosition: $0) }), in: 0...1)
+                    set: { value.wrappedValue = PokemonBalance.difficulty(atPosition: $0) }), in: 0...1) {
+                    Text(label)
+                } ticks: {
+                    // The scale is logarithmic, so ticks sit at round multipliers rather than even steps.
+                    SliderTickContentForEach(Self.tickDifficulties, id: \.self) { difficulty in
+                        SliderTick(PokemonBalance.difficultyPosition(difficulty))
+                    }
+                }
+                    // Without this the grouped Form treats the slider as a labeled control and pins it
+                    // to a short fixed width in the trailing column.
+                    .labelsHidden()
                     .accessibilityLabel(label)
                     .accessibilityHint(l.difficultyScaleHint(low: low, high: high))
-                Text(l.difficultyValue(value.wrappedValue))
-                    .font(.caption).monospacedDigit().frame(width: 52, alignment: .trailing)
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] }
+                HStack {
+                    Text(low)
+                    Spacer()
+                    Text(high)
+                }
+                .font(.caption2).foregroundStyle(.secondary)
+                .accessibilityHidden(true) // Read via the slider's hint instead.
             }
-            // Insets match the name (76 + 10) and value (52 + 10) columns so the labels sit under the slider.
-            HStack {
-                Text(low)
-                Spacer()
-                Text(high)
-            }
-            .font(.caption2).foregroundStyle(.secondary)
-            .padding(.leading, 86).padding(.trailing, 62)
-            .accessibilityHidden(true) // Read via the slider's hint instead.
+            .frame(maxWidth: .infinity)
+            Text(l.difficultyValue(value.wrappedValue))
+                .font(.caption).monospacedDigit()
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] }
+                .frame(width: 52, alignment: .trailing)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
     }
 }

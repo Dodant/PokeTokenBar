@@ -62,7 +62,7 @@ final class ZeroUsageHomeRenderingTests: XCTestCase {
         var state = CompanionState()
         state.language = .ko
         state.active = MonState(baseID: 129, pathIDs: [129, 130], stageIndex: 1,
-                                usedAtStage: 170_100_000, rarity: .common, totalForms: 2, nature: .hardy)
+                                usedAtStage: 170_100_000, rarity: .common, totalForms: 2)
         try JSONEncoder().encode(state).write(to: file)
         let companion = CompanionStore(provider: QuietHomePokemon(), fileURL: file, defaults: defaults)
         companion.update(todayTokensByProvider: [:], todayDate: LocalUsageReader.todayKey(), monthTotal: 0,

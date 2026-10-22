@@ -57,29 +57,27 @@ struct SettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
 
-    // MARK: 레이아웃 — 헤더 고정 / 본문 스크롤 / 푸터 고정
+    // MARK: 레이아웃 — 헤더 고정 / 본문 Form(grouped) / 푸터 고정
 
     var body: some View {
-        @Bindable var store = store
         VStack(spacing: 0) {
             header
             Divider()
             ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        generalGroup(store)
-                        difficultyGroup
-                        menuBarGroup(store)
-                        floatingPetGroup(store)
-                        notificationsGroup(store)
-                        transferGroup(store)
-                        advancedGroup(store)
-                            .id("advancedSettingsSection")
-                        aboutSupportGroup
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Form {
+                    generalGroup(store)
+                    difficultyGroup
+                    menuBarGroup(store)
+                    floatingPetGroup(store)
+                    notificationsGroup(store)
+                    transferGroup(store)
+                    advancedGroup(store)
+                        .id("advancedSettingsSection")
+                    aboutSupportGroup
                 }
+                .formStyle(.grouped)
+                // 팝오버 재질 위에 섹션 카드만 얹는다 — Form 고유 배경은 팝오버 안에서 다른 패널처럼 보인다.
+                .scrollContentBackground(.hidden)
                 .onAppear {
                     companion.refreshSnapshots()
                     snapshotsExpanded = false
@@ -139,22 +137,13 @@ struct SettingsView: View {
     @ViewBuilder
     private func generalGroup(_ store: UsageStore) -> some View {
         @Bindable var store = store
-        settingsSection(l.generalSectionTitle) {
-            groupRow {
-                Text(l.language)
-                Spacer()
-                Picker(l.language, selection: Binding(
-                    get: { companion.language },
-                    set: { companion.setLanguage($0); store.localizationLanguage = $0 })) {
-                    ForEach(AppLanguage.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .labelsHidden().pickerStyle(.menu).fixedSize()
+        Section(l.generalSectionTitle) {
+            Picker(l.language, selection: Binding(
+                get: { companion.language },
+                set: { companion.setLanguage($0); store.localizationLanguage = $0 })) {
+                ForEach(AppLanguage.allCases, id: \.self) { Text($0.label).tag($0) }
             }
-            Divider()
-            groupRow {
-                Text(l.representativePokemonLabel)
-                    .lineLimit(1).minimumScaleFactor(0.75)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            LabeledContent(l.representativePokemonLabel) {
                 Menu {
                     Button {
                         _ = companion.setRepresentativeSpeciesID(nil)
@@ -169,137 +158,96 @@ struct SettingsView: View {
                 } label: {
                     Text(representativeSelectionText).lineLimit(1).truncationMode(.tail)
                 }
-                .controlSize(.small)
-                .frame(width: 150, alignment: .trailing)
-                .layoutPriority(1)
+                .fixedSize()
             }
-            Divider()
-            groupRow {
-                Text(l.refreshInterval)
-                Spacer()
-                Picker(l.refreshInterval, selection: $store.refreshInterval) {
-                    ForEach(UsageStore.intervalPresets, id: \.value) { Text(l.intervalLabel($0.value)).tag($0.value) }
-                }
-                .labelsHidden().pickerStyle(.menu).fixedSize()
+            Picker(l.refreshInterval, selection: $store.refreshInterval) {
+                ForEach(UsageStore.intervalPresets, id: \.value) { Text(l.intervalLabel($0.value)).tag($0.value) }
             }
-            Divider()
-            groupRow {
-                // 메뉴바 스프라이트와 플로팅 펫 **둘 다**에 적용되므로 펫 섹션이 아니라 일반 섹션에 둔다.
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.animationQualityLabel)
-                    Text(l.animationQualityHint).font(.caption2).foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Picker(l.animationQualityLabel, selection: $store.animationQuality) {
-                    Text(l.animationPowerSaver).tag(UsageStore.AnimationQuality.powerSaver)
-                    Text(l.animationBalanced).tag(UsageStore.AnimationQuality.balanced)
-                    Text(l.animationSmooth).tag(UsageStore.AnimationQuality.smooth)
-                }
-                .labelsHidden().pickerStyle(.menu).fixedSize()
+            // 메뉴바 스프라이트와 플로팅 펫 **둘 다**에 적용되므로 펫 섹션이 아니라 일반 섹션에 둔다.
+            Picker(selection: $store.animationQuality) {
+                Text(l.animationPowerSaver).tag(UsageStore.AnimationQuality.powerSaver)
+                Text(l.animationBalanced).tag(UsageStore.AnimationQuality.balanced)
+                Text(l.animationSmooth).tag(UsageStore.AnimationQuality.smooth)
+            } label: {
+                Text(l.animationQualityLabel)
+                Text(l.animationQualityHint)
             }
-            Divider()
-            groupRow {
-                Text(l.limitDisplayModeLabel)
-                Spacer()
-                Picker(l.limitDisplayModeLabel, selection: $store.limitDisplayMode) {
-                    Text(l.limitDisplayUsed).tag(UsageStore.LimitDisplayMode.used)
-                    Text(l.limitDisplayRemaining).tag(UsageStore.LimitDisplayMode.remaining)
-                }
-                .labelsHidden().pickerStyle(.segmented).fixedSize()
+            Picker(l.limitDisplayModeLabel, selection: $store.limitDisplayMode) {
+                Text(l.limitDisplayUsed).tag(UsageStore.LimitDisplayMode.used)
+                Text(l.limitDisplayRemaining).tag(UsageStore.LimitDisplayMode.remaining)
             }
+            .pickerStyle(.segmented)
             if store.claudeAccounts.count > 1 {
-                Divider()
                 trackedAccountRow(store)
             }
-            Divider()
-            groupRow {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.launchAtLogin)
-                    if !isBundledApp {
-                        Text(l.bundledOnly).font(.caption2).foregroundStyle(.tertiary)
-                    }
-                    if let launchAtLoginError {
-                        Text(l.userFacingError(launchAtLoginError)).font(.caption2).foregroundStyle(.red)
-                    }
+            Toggle(isOn: $launchAtLogin) {
+                Text(l.launchAtLogin)
+                if !isBundledApp {
+                    Text(l.bundledOnly)
                 }
-                Spacer()
-                Toggle(l.launchAtLogin, isOn: $launchAtLogin)
-                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    .disabled(!isBundledApp)
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        do {
-                            try LoginItem.setEnabled(newValue)   // KeepAlive 에이전트(로그인 실행+크래시 재실행)
-                            launchAtLoginError = nil
-                        } catch {
-                            AppLog.write("login item update failed: \(error)")
-                            launchAtLoginError = error
-                            launchAtLogin = LoginItem.isEnabled
-                        }
-                    }
+                if let launchAtLoginError {
+                    Text(l.userFacingError(launchAtLoginError)).foregroundStyle(.red)
+                }
+            }
+            .disabled(!isBundledApp)
+            .onChange(of: launchAtLogin) { _, newValue in
+                do {
+                    try LoginItem.setEnabled(newValue)   // KeepAlive 에이전트(로그인 실행+크래시 재실행)
+                    launchAtLoginError = nil
+                } catch {
+                    AppLog.write("login item update failed: \(error)")
+                    launchAtLoginError = error
+                    launchAtLogin = LoginItem.isEnabled
+                }
             }
         }
     }
 
+    @ViewBuilder
     private var difficultyGroup: some View {
+        @Bindable var companion = companion
         DifficultySettingsSection(companion: companion)
+        Section(l.itemName(.rareCandy)) {
+            Toggle(l.candyCarryoverToEggLabel, isOn: $companion.candyGraduationCarryover)
+        }
     }
 
     @ViewBuilder
     private func menuBarGroup(_ store: UsageStore) -> some View {
         @Bindable var store = store
-        VStack(alignment: .leading, spacing: 6) {
-            settingsSection(l.menuBarSectionTitle) {
-                toggleRow(l.todayTokensShort, $store.showTokensInMenu)
-                Divider()
-                toggleRow(l.todayCost, $store.showCostInMenu)
-                Divider()
-                toggleRow(l.limitPercent, $store.showLimitInMenu)
-                if store.showLimitInMenu {
-                    Divider()
-                    groupRow {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(l.menuLimitColor)
-                            Text(l.menuLimitColorHint).font(.caption2).foregroundStyle(.tertiary)
-                        }
-                        Spacer()
-                        Picker(l.menuLimitColor, selection: $store.menuLimitColorMode) {
-                            ForEach(UsageStore.MenuLimitColorMode.allCases, id: \.self) {
-                                Text(l.menuLimitColorMode($0)).tag($0)
-                            }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
+        Section {
+            Toggle(l.todayTokensShort, isOn: $store.showTokensInMenu)
+            Toggle(l.todayCost, isOn: $store.showCostInMenu)
+            Toggle(l.limitPercent, isOn: $store.showLimitInMenu)
+            if store.showLimitInMenu {
+                Picker(selection: $store.menuLimitColorMode) {
+                    ForEach(UsageStore.MenuLimitColorMode.allCases, id: \.self) {
+                        Text(l.menuLimitColorMode($0)).tag($0)
                     }
+                } label: {
+                    Text(l.menuLimitColor)
+                    Text(l.menuLimitColorHint)
                 }
             }
-            Text(l.allOffHint).font(.caption2).foregroundStyle(.tertiary).padding(.leading, 4)
+        } header: {
+            Text(l.menuBarSectionTitle)
+        } footer: {
+            Text(l.allOffHint).font(.caption2).foregroundStyle(.tertiary)
         }
     }
 
     @ViewBuilder
     private func floatingPetGroup(_ store: UsageStore) -> some View {
         @Bindable var store = store
-        settingsSection(l.floatingPetSectionTitle) {
-            groupRow {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.floatingPetEnableLabel)
-                    Text(l.floatingPetHint).font(.caption2).foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Toggle(l.floatingPetEnableLabel, isOn: $store.floatingPetEnabled)
-                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+        Section(l.floatingPetSectionTitle) {
+            Toggle(isOn: $store.floatingPetEnabled) {
+                Text(l.floatingPetEnableLabel)
+                Text(l.floatingPetHint)
             }
             if store.floatingPetEnabled {
-                Divider()
-                groupRow {
-                    Text(l.floatingPetSizeLabel).font(.callout)
-                    Slider(value: $store.floatingPetSize, in: 48...384, step: 8)
-                        .accessibilityLabel(l.floatingPetSizeLabel)
-                    Text("\(Int(store.floatingPetSize))px")
-                        .font(.caption).monospacedDigit().frame(width: 44, alignment: .trailing)
-                }
-                Divider()
-                toggleRow(l.floatingPetBubbleAlertsLabel, $store.floatingPetBubbleAlerts)
+                sliderRow(l.floatingPetSizeLabel, value: $store.floatingPetSize, in: 48...384, step: 8,
+                          valueText: "\(Int(store.floatingPetSize))px", valueWidth: 44)
+                Toggle(l.floatingPetBubbleAlertsLabel, isOn: $store.floatingPetBubbleAlerts)
             }
         }
     }
@@ -307,37 +255,18 @@ struct SettingsView: View {
     @ViewBuilder
     private func notificationsGroup(_ store: UsageStore) -> some View {
         @Bindable var store = store
-        settingsSection(l.notificationsSection) {
-            toggleRow(l.limitNotificationsLabel, $store.limitNotifications)
+        Section(l.notificationsSection) {
+            Toggle(l.limitNotificationsLabel, isOn: $store.limitNotifications)
             if store.limitNotifications {
-                Divider()
-                groupRow {
-                    Text(l.warning).font(.callout)
-                    Slider(value: $store.warnThreshold, in: 50...95, step: 5)
-                        .accessibilityLabel(l.warning)
-                    Text(TokenFormatter.percent(store.warnThreshold))
-                        .font(.caption).monospacedDigit().frame(width: 38, alignment: .trailing)
-                }
-                Divider()
-                groupRow {
-                    Text(l.critical).font(.callout)
-                    Slider(value: $store.critThreshold, in: 80...100, step: 5)
-                        .accessibilityLabel(l.critical)
-                    Text(TokenFormatter.percent(store.critThreshold))
-                        .font(.caption).monospacedDigit().frame(width: 38, alignment: .trailing)
-                }
+                sliderRow(l.warning, value: $store.warnThreshold, in: 50...95, step: 5,
+                          valueText: TokenFormatter.percent(store.warnThreshold), valueWidth: 38)
+                sliderRow(l.critical, value: $store.critThreshold, in: 80...100, step: 5,
+                          valueText: TokenFormatter.percent(store.critThreshold), valueWidth: 38)
             }
-            Divider()
-            toggleRow(l.companionNotificationsLabel, $store.companionNotifications)
-            Divider()
-            groupRow {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.statusChecksLabel)
-                    Text(l.statusChecksHint).font(.caption2).foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Toggle(l.statusChecksLabel, isOn: $store.statusChecksEnabled)
-                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+            Toggle(l.companionNotificationsLabel, isOn: $store.companionNotifications)
+            Toggle(isOn: $store.statusChecksEnabled) {
+                Text(l.statusChecksLabel)
+                Text(l.statusChecksHint)
             }
         }
     }
@@ -347,55 +276,40 @@ struct SettingsView: View {
     /// 파일 선택창으로 고르게 한다.
     @ViewBuilder
     private func transferGroup(_ store: UsageStore) -> some View {
-        settingsSection(l.transferSectionTitle) {
-            groupRow {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.exportSaveLabel)
-                    Text(l.exportSaveHint).font(.caption2).foregroundStyle(.tertiary)
-                }
-                Spacer()
+        Section(l.transferSectionTitle) {
+            LabeledContent {
                 Button(l.exportSaveButton) { exportSave() }
+            } label: {
+                Text(l.exportSaveLabel)
+                Text(l.exportSaveHint)
             }
-            Divider()
-            groupRow {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.importSaveLabel)
-                    Text(l.importSaveHint).font(.caption2).foregroundStyle(.tertiary)
-                }
-                Spacer()
+            LabeledContent {
                 Button(l.importSaveButton) { importSave(store) }
+            } label: {
+                Text(l.importSaveLabel)
+                Text(l.importSaveHint)
             }
-            Divider()
             snapshotsSection(store)
         }
     }
 
     @ViewBuilder
     private func snapshotsSection(_ store: UsageStore) -> some View {
-        groupRow {
-            Text(l.createSnapshotHint).font(.caption2).foregroundStyle(.tertiary)
-            Spacer()
+        LabeledContent {
             Button(l.createSnapshotButton) { takeManualSnapshot() }
+        } label: {
+            Text(l.createSnapshotHint).font(.caption).foregroundStyle(.secondary)
         }
-        Divider()
         SnapshotHistoryButton(isExpanded: $snapshotsExpanded, title: l.snapshotsSectionTitle,
                               stateDescription: l.snapshotHistoryState(expanded: snapshotsExpanded))
             .frame(maxWidth: .infinity)
             .frame(height: 20)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
         if snapshotsExpanded {
-            VStack(spacing: 0) {
-                if companion.availableSnapshots.isEmpty {
-                    groupRow {
-                        Text(l.noSnapshotsYet).font(.caption2).foregroundStyle(.tertiary)
-                        Spacer()
-                    }
-                } else {
-                    ForEach(companion.availableSnapshots) { snapshot in
-                        Divider()
-                        snapshotRow(snapshot, store: store)
-                    }
+            if companion.availableSnapshots.isEmpty {
+                Text(l.noSnapshotsYet).font(.caption).foregroundStyle(.secondary)
+            } else {
+                ForEach(companion.availableSnapshots) { snapshot in
+                    snapshotRow(snapshot, store: store)
                 }
             }
         }
@@ -403,7 +317,12 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func snapshotRow(_ snapshot: SaveSnapshot, store: UsageStore) -> some View {
-        groupRow {
+        LabeledContent {
+            Button(l.restoreSnapshotButton) {
+                confirmAndRestoreSnapshot(snapshot, store: store)
+            }
+            .controlSize(.small)
+        } label: {
             HStack(spacing: 8) {
                 if let speciesID = snapshot.currentSpeciesID {
                     SpriteView(speciesID: speciesID, size: 28, shiny: snapshot.currentIsShiny,
@@ -424,89 +343,75 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 }
             }
-            Spacer()
-            Button(l.restoreSnapshotButton) {
-                confirmAndRestoreSnapshot(snapshot, store: store)
-            }
-            .controlSize(.small)
         }
     }
 
     /// claude.ai 세션 키 — Keychain 을 안 읽는 한도 조회 경로. 붙여넣고 저장하면 즉시 검증한다.
     @ViewBuilder
     private func sessionKeyRows(_ store: UsageStore) -> some View {
-        groupRow {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text(l.sessionKeyLabel)
-                    if store.sessionKeyExpired {
-                        // 키는 아직 저장돼 있지만 서버가 거부한 상태 — 여기서 '설정됨' 을 그대로
-                        // 두면 만료 안내를 보고 들어온 사용자가 할 일을 못 찾는다.
-                        Text(l.sessionKeyExpiredBadge)
-                            .font(.caption2).foregroundStyle(.orange)
-                    } else if store.sessionKeyConfigured {
-                        Text(l.sessionKeySaved)
-                            .font(.caption2).foregroundStyle(.green)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(l.sessionKeyLabel)
+                if store.sessionKeyExpired {
+                    // 키는 아직 저장돼 있지만 서버가 거부한 상태 — 여기서 '설정됨' 을 그대로
+                    // 두면 만료 안내를 보고 들어온 사용자가 할 일을 못 찾는다.
+                    Text(l.sessionKeyExpiredBadge)
+                        .font(.caption2).foregroundStyle(.orange)
+                } else if store.sessionKeyConfigured {
+                    Text(l.sessionKeySaved)
+                        .font(.caption2).foregroundStyle(.green)
+                }
+            }
+            // The key only replaces the default login's Keychain read; other accounts have their own below.
+            Text(store.additionalClaudeConfigRoots.isEmpty ? l.sessionKeyHint : l.sessionKeyHint + " " + l.sessionKeyPerAccountNote)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                // 값은 되돌려 보여주지 않는다 — 저장돼 있으면 빈 칸에 자리표시만 둔다.
+                SecureField(store.sessionKeyConfigured ? "••••••••" : "sk-ant-sid…", text: $sessionKeyInput)
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                    .frame(maxWidth: 220)
+                    .focused($sessionKeyFocused)
+                    .onSubmit { submitSessionKey(store) }
+                Button {
+                    submitSessionKey(store)
+                } label: {
+                    if store.isValidatingSessionKey {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(l.save)
                     }
                 }
-                // The key only replaces the default login's Keychain read; other accounts have their own below.
-                Text(store.additionalClaudeConfigRoots.isEmpty ? l.sessionKeyHint : l.sessionKeyHint + " " + l.sessionKeyPerAccountNote)
-                    .font(.caption2).foregroundStyle(.tertiary)
+                .disabled(sessionKeyInput.isEmpty || store.isValidatingSessionKey)
+                if store.sessionKeyConfigured {
+                    Button(l.delete) {
+                        sessionKeyInput = ""
+                        store.clearSessionKey()
+                    }
+                }
+                Spacer()
+            }
+            if let sessionKeyError = store.sessionKeyError {
+                Text(sessionKeyError)
+                    .font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if store.sessionKeyConfigured {
+                Text(l.sessionKeyStorageNote)
+                    .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
-        }
-        groupRow {
-            // 값은 되돌려 보여주지 않는다 — 저장돼 있으면 빈 칸에 자리표시만 둔다.
-            SecureField(store.sessionKeyConfigured ? "••••••••" : "sk-ant-sid…", text: $sessionKeyInput)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 220)
-                .focused($sessionKeyFocused)
-                .onSubmit { submitSessionKey(store) }
-            Button {
-                submitSessionKey(store)
-            } label: {
-                if store.isValidatingSessionKey {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Text(l.save)
-                }
-            }
-            .disabled(sessionKeyInput.isEmpty || store.isValidatingSessionKey)
-            if store.sessionKeyConfigured {
-                Button(l.delete) {
-                    sessionKeyInput = ""
-                    store.clearSessionKey()
-                }
-            }
-            Spacer()
         }
         // 조직이 여럿일 때만 노출 — 자동 선택이 개인/회사 계정을 잘못 고를 수 있다.
         if store.sessionKeyOrganizations.count > 1 {
-            groupRow {
-                Text(l.sessionKeyOrganizationLabel)
-                Spacer()
-                Picker(l.sessionKeyOrganizationLabel, selection: Binding(
-                    get: { store.sessionKeySelectedOrgID ?? "" },
-                    set: { id in Task { await store.selectSessionOrganization(id) } })
-                ) {
-                    ForEach(store.sessionKeyOrganizations) { org in
-                        Text(org.name).tag(org.id)
-                    }
+            Picker(l.sessionKeyOrganizationLabel, selection: Binding(
+                get: { store.sessionKeySelectedOrgID ?? "" },
+                set: { id in Task { await store.selectSessionOrganization(id) } })
+            ) {
+                ForEach(store.sessionKeyOrganizations) { org in
+                    Text(org.name).tag(org.id)
                 }
-                .labelsHidden().frame(maxWidth: 220)
             }
-        }
-        if let sessionKeyError = store.sessionKeyError {
-            Text(sessionKeyError)
-                .font(.caption2).foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12).padding(.bottom, 6)
-        } else if store.sessionKeyConfigured {
-            Text(l.sessionKeyStorageNote)
-                .font(.caption2).foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12).padding(.bottom, 6)
         }
     }
 
@@ -515,15 +420,13 @@ struct SettingsView: View {
     @ViewBuilder
     private func accountSessionKeyRows(_ store: UsageStore) -> some View {
         ForEach(store.additionalClaudeConfigRoots, id: \.self) { rootPath in
-            Divider()
             accountSessionKeyRow(store, rootPath: rootPath)
         }
         // The storage note is shown once, under the default key when that one is saved.
         if !store.accountSessionKeyPaths.isEmpty, !store.sessionKeyConfigured || store.sessionKeyError != nil {
             Text(l.sessionKeyStorageNote)
-                .font(.caption2).foregroundStyle(.tertiary)
+                .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12).padding(.bottom, 6)
         }
     }
 
@@ -537,53 +440,50 @@ struct SettingsView: View {
         let configured = store.accountSessionKeyPaths.contains(rootPath)
         let input = Binding(get: { accountSessionKeyInputs[rootPath] ?? "" },
                             set: { accountSessionKeyInputs[rootPath] = $0 })
-        groupRow {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text(l.accountSessionKeyLabel(title))
-                    if account?.sessionKeyExpired == true {
-                        Text(l.sessionKeyExpiredBadge)
-                            .font(.caption2).foregroundStyle(.orange)
-                    } else if configured {
-                        Text(l.sessionKeySaved)
-                            .font(.caption2).foregroundStyle(.green)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(l.accountSessionKeyLabel(title))
+                if account?.sessionKeyExpired == true {
+                    Text(l.sessionKeyExpiredBadge)
+                        .font(.caption2).foregroundStyle(.orange)
+                } else if configured {
+                    Text(l.sessionKeySaved)
+                        .font(.caption2).foregroundStyle(.green)
+                }
+            }
+            // The email names the browser login to copy the key from; the folder tells two logins apart.
+            if title != folder {
+                Text(folder).font(.caption).foregroundStyle(.secondary)
+            }
+            HStack {
+                SecureField(configured ? "••••••••" : "sk-ant-sid…", text: input)
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                    .frame(maxWidth: 220)
+                    .onSubmit { submitAccountSessionKey(store, rootPath: rootPath) }
+                Button {
+                    submitAccountSessionKey(store, rootPath: rootPath)
+                } label: {
+                    if store.validatingAccountSessionKeyPath == rootPath {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(l.save)
                     }
                 }
-                // The email names the browser login to copy the key from; the folder tells two logins apart.
-                if title != folder {
-                    Text(folder).font(.caption2).foregroundStyle(.tertiary)
+                .disabled(input.wrappedValue.isEmpty || store.validatingAccountSessionKeyPath != nil)
+                if configured {
+                    Button(l.delete) {
+                        accountSessionKeyInputs[rootPath] = nil
+                        store.clearAccountSessionKey(for: rootPath)
+                    }
                 }
+                Spacer()
             }
-            Spacer()
-        }
-        groupRow {
-            SecureField(configured ? "••••••••" : "sk-ant-sid…", text: input)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 220)
-                .onSubmit { submitAccountSessionKey(store, rootPath: rootPath) }
-            Button {
-                submitAccountSessionKey(store, rootPath: rootPath)
-            } label: {
-                if store.validatingAccountSessionKeyPath == rootPath {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Text(l.save)
-                }
+            if let error = store.accountSessionKeyError(for: rootPath) {
+                Text(error)
+                    .font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .disabled(input.wrappedValue.isEmpty || store.validatingAccountSessionKeyPath != nil)
-            if configured {
-                Button(l.delete) {
-                    accountSessionKeyInputs[rootPath] = nil
-                    store.clearAccountSessionKey(for: rootPath)
-                }
-            }
-            Spacer()
-        }
-        if let error = store.accountSessionKeyError(for: rootPath) {
-            Text(error)
-                .font(.caption2).foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12).padding(.bottom, 6)
         }
     }
 
@@ -605,54 +505,21 @@ struct SettingsView: View {
         }
     }
 
+
     @ViewBuilder
     private func advancedGroup(_ store: UsageStore) -> some View {
         @Bindable var store = store
-        settingsSection(l.advancedSectionTitle) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) { advancedExpanded.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.forward")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(advancedExpanded ? 90 : 0))
-                    Text(l.advancedDisclosureLabel)
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .onChange(of: advancedExpanded) { _, expanded in
-                if !expanded {
-                    commitCustomScanDraft()
-                    customScanMatchTask?.cancel()
-                }
-            }
-
-            if advancedExpanded {
-                Divider()
+        Section(l.advancedSectionTitle) {
+            DisclosureGroup(l.advancedDisclosureLabel, isExpanded: $advancedExpanded) {
                 sessionKeyRows(store)
                     // 재시작 후엔 후보 목록이 비어 있어 조직을 바꿀 수 없다 — 열 때 한 번 채운다.
                     .task { await store.refreshSessionOrganizations() }
                 accountSessionKeyRows(store)
-                Divider()
-                groupRow {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(l.disableKeychain)
-                        Text(l.disableKeychainHint).font(.caption2).foregroundStyle(.tertiary)
-                    }
-                    Spacer()
-                    Toggle(l.disableKeychain, isOn: $store.disableKeychainAccess)
-                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                Toggle(isOn: $store.disableKeychainAccess) {
+                    Text(l.disableKeychain)
+                    Text(l.disableKeychainHint)
                 }
-                Divider()
-                groupRow {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(l.refreshLimitToken)
-                        Text(l.onlyOnPress).font(.caption2).foregroundStyle(.tertiary)
-                    }
-                    Spacer()
+                LabeledContent {
                     Button {
                         Task { await store.refreshLimitTokenFromKeychain() }
                     } label: {
@@ -663,66 +530,68 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(store.disableKeychainAccess || store.isRefreshingLimitToken)
+                } label: {
+                    Text(l.refreshLimitToken)
+                    Text(l.onlyOnPress)
                 }
                 if let message = store.limitTokenRefreshMessage {
                     Text(message)
-                        .font(.caption2).foregroundStyle(.orange)
+                        .font(.caption).foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 12).padding(.bottom, 6)
                 }
-                Divider()
                 additionalAccountsRow(store)
-                Divider()
-                groupRow {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(l.customScanRootsLabel)
-                        Text(l.customScanRootsHint).font(.caption2).foregroundStyle(.tertiary)
-                        HStack {
-                            Text(l.customScanProviderLabel).font(.caption)
-                            Spacer()
-                            Picker(l.customScanProviderLabel, selection: $selectedScanProviderID) {
-                                ForEach(store.registeredProviders, id: \.id) { provider in
-                                    Text(provider.displayName).tag(provider.id)
-                                }
-                            }
-                            .labelsHidden().pickerStyle(.menu).fixedSize()
-                        }
-                        TextField(l.customScanRootsPlaceholder, text: $customScanDraft, axis: .vertical)
-                            .textFieldStyle(.roundedBorder).font(.caption)
-                            .focused($customScanFocused)
-                            .onSubmit { commitCustomScanDraft() }
-                        if !customScanDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text(l.customScanRootsMatches(customScanMatchCount))
-                                .font(.caption2).foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-                .onAppear {
-                    customScanDraftOwnerID = selectedScanProviderID
-                    customScanDraft = store.customScanRoots(for: selectedScanProviderID)
-                    scheduleCustomScanMatchCount()
-                }
-                .onDisappear {
+                customScanRootsRow(store)
+                Text(l.aggregationNote)
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .onChange(of: advancedExpanded) { _, expanded in
+                if !expanded {
                     commitCustomScanDraft()
                     customScanMatchTask?.cancel()
                 }
-                .onChange(of: selectedScanProviderID) { _, newID in
-                    store.setCustomScanRoots(customScanDraft, for: customScanDraftOwnerID)
-                    customScanDraftOwnerID = newID
-                    customScanDraft = store.customScanRoots(for: newID)
-                    scheduleCustomScanMatchCount()
-                }
-                .onChange(of: customScanDraft) { _, _ in
-                    scheduleCustomScanMatchCount()
-                }
-                .onChange(of: customScanFocused) { _, focused in
-                    if !focused { commitCustomScanDraft() }
-                }
-                Divider()
-                Text(l.aggregationNote)
-                    .font(.caption2).foregroundStyle(.tertiary)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
             }
+        }
+    }
+
+    private func customScanRootsRow(_ store: UsageStore) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(l.customScanRootsLabel)
+            Text(l.customScanRootsHint).font(.caption).foregroundStyle(.secondary)
+            Picker(l.customScanProviderLabel, selection: $selectedScanProviderID) {
+                ForEach(store.registeredProviders, id: \.id) { provider in
+                    Text(provider.displayName).tag(provider.id)
+                }
+            }
+            TextField(l.customScanRootsPlaceholder, text: $customScanDraft, axis: .vertical)
+                .textFieldStyle(.roundedBorder).font(.caption)
+                .labelsHidden()
+                .focused($customScanFocused)
+                .onSubmit { commitCustomScanDraft() }
+            if !customScanDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(l.customScanRootsMatches(customScanMatchCount))
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .onAppear {
+            customScanDraftOwnerID = selectedScanProviderID
+            customScanDraft = store.customScanRoots(for: selectedScanProviderID)
+            scheduleCustomScanMatchCount()
+        }
+        .onDisappear {
+            commitCustomScanDraft()
+            customScanMatchTask?.cancel()
+        }
+        .onChange(of: selectedScanProviderID) { _, newID in
+            store.setCustomScanRoots(customScanDraft, for: customScanDraftOwnerID)
+            customScanDraftOwnerID = newID
+            customScanDraft = store.customScanRoots(for: newID)
+            scheduleCustomScanMatchCount()
+        }
+        .onChange(of: customScanDraft) { _, _ in
+            scheduleCustomScanMatchCount()
+        }
+        .onChange(of: customScanFocused) { _, focused in
+            if !focused { commitCustomScanDraft() }
         }
     }
 
@@ -738,49 +607,38 @@ struct SettingsView: View {
                 return accountModes.contains { $0.mode == mode } || mode == .highest ? mode : .automatic
             },
             set: { store.claudeTrackedAccountMode = $0 })
-        // Stacked: account emails make the picker too wide to sit next to the label.
-        return groupRow {
-            VStack(alignment: .leading, spacing: 6) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.trackedAccountLabel)
-                    Text(l.trackedAccountHint).font(.caption2).foregroundStyle(.tertiary)
-                }
-                HStack {
-                    Spacer()
-                    Picker(l.trackedAccountLabel, selection: selection) {
-                        Text(l.trackedAccountAutomatic).tag(ClaudeTrackedAccountMode.automatic)
-                        Text(l.trackedAccountHighest).tag(ClaudeTrackedAccountMode.highest)
-                        ForEach(accountModes, id: \.account.id) { item in
-                            Text(item.account.title).tag(item.mode)
-                        }
-                    }
-                    .labelsHidden().pickerStyle(.menu).fixedSize()
-                }
+        return Picker(selection: selection) {
+            Text(l.trackedAccountAutomatic).tag(ClaudeTrackedAccountMode.automatic)
+            Text(l.trackedAccountHighest).tag(ClaudeTrackedAccountMode.highest)
+            ForEach(accountModes, id: \.account.id) { item in
+                Text(item.account.title).tag(item.mode)
             }
+        } label: {
+            Text(l.trackedAccountLabel)
+            Text(l.trackedAccountHint)
         }
     }
 
     /// Detected and extra Claude config folders; each account gets its own tab in the popover's official limits.
     /// Committed on submit / focus loss, like the custom scan folders: each commit triggers a refresh.
     private func additionalAccountsRow(_ store: UsageStore) -> some View {
-        groupRow {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(l.additionalClaudeAccountsLabel)
-                Text(l.additionalClaudeAccountsHint).font(.caption2).foregroundStyle(.tertiary)
-                if !store.detectedClaudeConfigDirs.isEmpty {
-                    Text(l.additionalClaudeAccountsDetected(store.detectedClaudeConfigDirs
-                        .map { ($0 as NSString).abbreviatingWithTildeInPath }
-                        .joined(separator: ", ")))
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                TextField(l.additionalClaudeAccountsPlaceholder, text: $additionalAccountsDraft, axis: .vertical)
-                    .textFieldStyle(.roundedBorder).font(.caption)
-                    .focused($additionalAccountsFocused)
-                    .onSubmit { store.additionalClaudeConfigDirs = additionalAccountsDraft }
-                if !additionalAccountsDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(l.additionalClaudeAccountsFound(ClaudeAccountRoots.roots(from: additionalAccountsDraft).count))
-                        .font(.caption2).foregroundStyle(.tertiary)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            Text(l.additionalClaudeAccountsLabel)
+            Text(l.additionalClaudeAccountsHint).font(.caption).foregroundStyle(.secondary)
+            if !store.detectedClaudeConfigDirs.isEmpty {
+                Text(l.additionalClaudeAccountsDetected(store.detectedClaudeConfigDirs
+                    .map { ($0 as NSString).abbreviatingWithTildeInPath }
+                    .joined(separator: ", ")))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            TextField(l.additionalClaudeAccountsPlaceholder, text: $additionalAccountsDraft, axis: .vertical)
+                .textFieldStyle(.roundedBorder).font(.caption)
+                .labelsHidden()
+                .focused($additionalAccountsFocused)
+                .onSubmit { store.additionalClaudeConfigDirs = additionalAccountsDraft }
+            if !additionalAccountsDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(l.additionalClaudeAccountsFound(ClaudeAccountRoots.roots(from: additionalAccountsDraft).count))
+                    .font(.caption2).foregroundStyle(.tertiary)
             }
         }
         .onAppear { additionalAccountsDraft = store.additionalClaudeConfigDirs }
@@ -791,63 +649,40 @@ struct SettingsView: View {
     }
 
     private var aboutSupportGroup: some View {
-        settingsSection(l.aboutSupportSectionTitle) {
-            groupRow {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(l.reportProblem)
-                    Text(l.reportAttachHint).font(.caption2).foregroundStyle(.tertiary)
-                }
-                Spacer()
+        Section(l.aboutSupportSectionTitle) {
+            LabeledContent {
                 Button(l.reportProblem) { reportProblem() }
+            } label: {
+                Text(l.reportProblem)
+                Text(l.reportAttachHint)
             }
-            Divider()
             // 로그 파일 보기 — 문제 제보 시 바로 첨부할 수 있게 같은 그룹에 둔다(고급 접기 밖).
-            groupRow {
-                Text(l.showLogFile)
-                Spacer()
+            LabeledContent(l.showLogFile) {
                 Button("Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([AppLog.logFileURL])
                 }
             }
             if reportFailed {
                 Text(l.reportMailFallback(SupportMail.address))
-                    .font(.caption2).foregroundStyle(.orange).textSelection(.enabled)
-                    .padding(.horizontal, 12).padding(.bottom, 6)
+                    .font(.caption).foregroundStyle(.orange).textSelection(.enabled)
             }
         }
     }
 
     // MARK: 공용 빌더
 
-    /// 섹션 = 소문자 회색 타이틀 + 라운드 카드 (macOS inset grouped 룩).
-    @ViewBuilder
-    private func settingsSection<Content: View>(
-        _ title: String, @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
-                .textCase(.uppercase).padding(.leading, 4)
-            VStack(spacing: 0) { content() }
-                .background(Color(nsColor: .controlBackgroundColor),
-                           in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
-        }
-    }
-
-    /// 카드 내부 한 줄 — 좌 라벨 / 우 컨트롤.
-    private func groupRow<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        HStack(spacing: 10) { content() }
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .frame(minHeight: 38)
-    }
-
-    private func toggleRow(_ label: String, _ isOn: Binding<Bool>) -> some View {
-        groupRow {
-            Text(label)
-            Spacer()
-            Toggle(label, isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.small)
+    /// 슬라이더 한 줄 — 라벨 / 슬라이더 / 고정폭 값(값 자릿수가 바뀌어도 슬라이더 폭이 흔들리지 않게).
+    private func sliderRow(_ label: String, value: Binding<Double>, in range: ClosedRange<Double>,
+                           step: Double, valueText: String, valueWidth: CGFloat) -> some View {
+        LabeledContent(label) {
+            HStack(spacing: 8) {
+                Slider(value: value, in: range, step: step)
+                    .labelsHidden()   // otherwise the grouped Form pins it to a short fixed width
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(label)
+                Text(valueText)
+                    .font(.caption).monospacedDigit().frame(width: valueWidth, alignment: .trailing)
+            }
         }
     }
 

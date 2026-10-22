@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-enum PopoverTab { case home, shop, bag, collection }
+enum PopoverTab { case home, shop, collection }
 
 /// 팝오버 치수의 단일 소스. 자식이 쓸 수 있는 폭을 알아야 할 때 이 값을 쓴다 — 넘치는 자식이
 /// 부모 폭을 부풀리므로 GeometryReader 로 재면 순환한다.
@@ -121,23 +121,16 @@ struct PopoverView: View {
     private var mainContent: some View {
         @Bindable var nav = nav
         return VStack(alignment: .leading, spacing: 12) {
-            Picker("", selection: $nav.tab) {
-                Text(l.home).tag(PopoverTab.home)
-                Text(l.shop).tag(PopoverTab.shop)
-                Text(l.bag).tag(PopoverTab.bag)
-                Text(l.collection).tag(PopoverTab.collection)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            GlassTabBar(selection: $nav.tab, items: [
+                (PopoverTab.home, l.home), (.shop, l.shop), (.collection, l.collection),
+            ])
 
             if nav.tab == .collection {
                 CollectionView(store: companion, navigation: nav)
-            } else if nav.tab == .bag {
-                BagView(store: companion, nav: nav)
             } else if nav.tab == .shop {
                 ShopView(store: companion, nav: nav)
             } else {
-                // 고정 높이 — 상점/가방/컬렉션과 동일(팝오버가 화면을 넘어가는 것을 방지).
+                // 고정 높이 — 상점/컬렉션과 동일(팝오버가 화면을 넘어가는 것을 방지).
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         CompanionHeader(store: companion) { nav.openDexEntry(collectionID: $0) }
@@ -540,7 +533,7 @@ struct PopoverView: View {
             Button(l.retry) {
                 Task { await store.refreshAntigravityLimitsFromKeychain() }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.mini)
             .padding(.top, 2)
         }
@@ -1582,6 +1575,46 @@ struct ProviderTabBar: View {
     }
 }
 
+/// Equal-width tabs on a glass track for the popover's top level. The accent selection pill slides
+/// between tabs; the system segmented picker sized to its labels and sat left-aligned on macOS 26.
+@MainActor
+struct GlassTabBar<Tab: Hashable>: View {
+    @Binding var selection: Tab
+    let items: [(Tab, String)]
+    @Namespace private var pill
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items, id: \.0) { tab, title in
+                let isSelected = tab == selection
+                Button { selection = tab } label: {
+                    Text(title)
+                        .font(.callout.weight(isSelected ? .semibold : .regular))
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .contentShape(Capsule())
+                        .matchedGeometryEffect(id: tab, in: pill, isSource: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+            }
+        }
+        // One persistent pill follows the selected tab's frame, so it slides rather than cross-fading
+        // (a pill inserted per tab faded in at the destination). Not glass: a glass pill on the glass
+        // track merged with it, and a solid pill keeps glass off glass.
+        .background {
+            Capsule().fill(Color.accentColor)
+                .matchedGeometryEffect(id: selection, in: pill, isSource: false)
+        }
+        // Scoped here so only the pill slides; the tab content below swaps without animation as before.
+        .animation(.smooth(duration: 0.25), value: selection)
+        .padding(3)
+        .glassEffect(.regular, in: Capsule())
+    }
+}
+
 /// Capsule tabs shared by the service tabs and the Claude account tabs (layout notes on `ProviderTabBar`).
 @MainActor
 struct CapsuleTabBar: View {
@@ -1599,27 +1632,30 @@ struct CapsuleTabBar: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(items) { item in
-                    let isSelected = item.id == selectedID
-                    Button { onSelect(item.id) } label: {
-                        HStack(spacing: 4) {
-                            if item.marked {
-                                Circle().frame(width: 5, height: 5)
+            GlassEffectContainer(spacing: 6) {
+                HStack(spacing: 6) {
+                    ForEach(items) { item in
+                        let isSelected = item.id == selectedID
+                        Button { onSelect(item.id) } label: {
+                            HStack(spacing: 4) {
+                                if item.marked {
+                                    Circle().frame(width: 5, height: 5)
+                                }
+                                Text(item.title)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
                             }
-                            Text(item.title)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
+                            .font(.caption.weight(isSelected ? .semibold : .regular))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                            .glassEffect(isSelected ? .regular.tint(.accentColor.opacity(0.25)).interactive()
+                                                    : .regular.interactive(),
+                                         in: Capsule())
                         }
-                        .font(.caption.weight(isSelected ? .semibold : .regular))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(isSelected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.08))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
+                        .help(item.help ?? "")
                     }
-                    .buttonStyle(.plain)
-                    .help(item.help ?? "")
                 }
             }
         }

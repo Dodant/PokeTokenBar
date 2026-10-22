@@ -1152,7 +1152,6 @@ struct L {
     var pokemonIndividual: String { t("개체", "Individual", "個体", "Ejemplar", "Individu", "Indivíduo", "Individuum", "Особь") }
     var level: String { t("레벨", "Level", "レベル", "Nivel", "Niveau", "Nível", "Level", "Уровень") }
     var gender: String { t("성별", "Gender", "性別", "Sexo", "Sexe", "Gênero", "Geschlecht", "Пол") }
-    var nature: String { t("성격", "Nature", "性格", "Naturaleza", "Nature", "Natureza", "Wesen", "Характер") }
     var ability: String { t("특성", "Ability", "特性", "Habilidad", "Talent", "Habilidade", "Fähigkeit", "Способность") }
     var hiddenAbility: String { t("숨겨진 특성", "Hidden Ability", "隠れ特性", "Habilidad oculta", "Talent caché", "Habilidade oculta", "Versteckte Fähigkeit", "Скрытая способность") }
     var hidden: String { t("숨김", "Hidden", "隠れ", "Oculta", "Caché", "Oculta", "Versteckt", "Скрытая") }
@@ -1400,8 +1399,6 @@ struct L {
     var codexPersonalLimit: String { t("Codex 개인 한도", "Codex personal limit", "Codex 個人上限", "Límite personal de Codex", "Limite personnelle Codex", "Limite pessoal do Codex", "Persönliches Codex-Limit", "Личный лимит Codex") }
 
     // MARK: 가방 / 아이템
-    var bag: String { t("가방", "Bag", "バッグ", "Bolsa", "Sac", "Bolsa", "Beutel", "Сумка") }
-    var bagEmptyTitle: String { t("아직 가방이 비어있어요!", "Your bag is empty!", "バッグはまだ空っぽです！", "¡Tu bolsa todavía está vacía!", "Ton sac est encore vide !", "Sua bolsa ainda está vazia!", "Dein Beutel ist noch leer!", "Сумка пуста!") }
     var useItem: String { t("사용하기", "Use", "つかう", "Usar", "Utiliser", "Usar", "Verwenden", "Применить") }
     var use: String { t("사용", "Use", "つかう", "Usar", "Utiliser", "Usar", "Verwenden", "Применить") }
     var cancel: String { t("취소", "Cancel", "キャンセル", "Cancelar", "Annuler", "Cancelar", "Abbrechen", "Отменить") }
@@ -1436,11 +1433,29 @@ struct L {
           "При выпуске сгорит остаток: \(xp) XP.")
     }
 
+    /// 상점 "전부 구매"·가방 "전부 사용" — 수량을 한도로 채우고 확인 단계로.
+    var buyAll: String { t("전부 구매", "Buy all", "すべて購入", "Comprar todo", "Tout acheter", "Comprar tudo", "Alle kaufen", "Купить все") }
+    var useAll: String { t("전부 사용", "Use all", "すべて使う", "Usar todo", "Tout utiliser", "Usar tudo", "Alle verwenden", "Применить все") }
+    var candyCarryoverToEggLabel: String {
+        t("남은 XP를 다음 알로 이월", "Carry leftover XP to the next egg", "余ったXPを次のタマゴに繰り越す",
+          "Pasar la XP sobrante al siguiente huevo", "Reporter les XP restants sur le prochain œuf",
+          "Levar a XP restante para o próximo ovo", "Übrige EP ins nächste Ei übertragen",
+          "Переносить остаток XP в следующее яйцо")
+    }
+    func candyCarriedToEggXP(_ xp: String) -> String {
+        t("졸업 시 남는 \(xp) XP는 다음 알로 이월돼요.", "On graduation, \(xp) leftover XP goes to the next egg.",
+          "卒業時、余った\(xp) XPは次のタマゴに繰り越されます。",
+          "Al graduarse, \(xp) XP sobrantes pasarán al siguiente huevo.",
+          "À la fin de la croissance, les \(xp) XP restants iront au prochain œuf.",
+          "Ao se formar, \(xp) XP restantes vão para o próximo ovo.",
+          "Beim Trainingsabschluss gehen \(xp) überschüssige EP ins nächste Ei.",
+          "При выпуске остаток \(xp) XP перейдёт в следующее яйцо.")
+    }
+
     /// 아이템 표시명 — species 처럼 공식 현지명.
     func itemName(_ kind: ItemKind) -> String {
         switch kind {
         case .rareCandy: return t("이상한 사탕", "Rare Candy", "ふしぎなアメ", "Caramelo Raro", "Super Bonbon", "Doce Raro", "Sonderbonbon", "Редкая конфета")
-        case .mint:      return t("민트", "Mint", "ミント", "Menta", "Menthe", "Menta", "Minze", "Мята")
         case .shinyCharm: return t("이로치 부적", "Shiny Charm", "ひかるおまもり", "Amuleto Iris", "Charme Chroma", "Amuleto Shiny", "Schillerpin", "Шайни-талисман")
         }
     }
@@ -1456,15 +1471,6 @@ struct L {
                      "Aumenta a experiência do seu Pokémon em \(xp).",
                      "Gibt deinem aktuellen Pokémon \(xp) EP.",
                      "Увеличивает опыт покемона на \(xp).")
-        case .mint:
-            return t("현재 포켓몬의 성격을 랜덤으로 바꿔줘요.",
-                     "Randomly changes your Pokémon's nature.",
-                     "ポケモンのせいかくをランダムに変えます。",
-                     "Cambia aleatoriamente la naturaleza de tu Pokémon.",
-                     "Change aléatoirement la nature de ton Pokémon.",
-                     "Muda a natureza do seu Pokémon aleatoriamente.",
-                     "Ändert das Wesen deines aktuellen Pokémon zufällig.",
-                     "Случайно меняет характер покемона.")
         case .shinyCharm:
             return t("보유하면 이로치 포켓몬이 태어날 확률이 올라가요.",
                      "While owned, raises the chance of hatching a shiny.",
@@ -1476,8 +1482,6 @@ struct L {
                      "Пока он у вас, повышает шанс, что вылупится шайни.")
         }
     }
-    /// 가방 사용 컨트롤의 효과 힌트 — 민트("성격 랜덤 변경", 사탕의 "+XP" 자리).
-    var mintEffectHint: String { t("성격 랜덤 변경", "Random nature", "せいかくランダム変更", "Naturaleza aleatoria", "Nature aléatoire", "Natureza aleatória", "Zufälliges Wesen", "Случайный характер") }
 
     // MARK: 상점 (재화 = 사용한 토큰)
     var shop: String { t("상점", "Shop", "ショップ", "Tienda", "Boutique", "Loja", "Laden", "Магазин") }

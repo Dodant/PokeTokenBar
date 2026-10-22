@@ -42,8 +42,7 @@ final class CollectionReadabilityRenderingTests: XCTestCase {
             state.language = language
             state.dex = ids.enumerated().map { offset, id in
                 DexEntry(baseID: id == 15 ? 13 : id, finalID: id, chainOrder: id == 15 ? [13, 14, 15] : [id], rarity: [.common, .uncommon, .rare, .legendary][offset % 4],
-                         caughtAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(offset)),
-                         nature: .adamant, names: names)
+                         caughtAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(offset)), names: names)
             }
             try JSONEncoder().encode(state).write(to: file)
             let store = CompanionStore(provider: ReadabilityProvider(), fileURL: file)

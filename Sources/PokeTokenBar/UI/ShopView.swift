@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// 상점 — 사용한 토큰(재화 = usedSinceInstall − spentTokens)으로 아이템 구매(이상한 사탕·민트).
-/// 인라인 확인(버튼 morph) — .sheet/.alert 금지(BagView 주석과 동일: transient 팝오버가 닫힐 때
-/// 고아 시트가 이후 클릭을 먹통내는 결함 회피).
+/// 상점 — 사용한 토큰(재화 = usedSinceInstall − spentTokens)으로 아이템 구매(이상한 사탕·이로치 부적).
+/// 가방을 겸한다: 아이템 카드가 보유 수와 사용 줄을 함께 보여 사고 쓰는 일이 한 화면에서 끝난다.
+/// 인라인 확인(버튼 morph) — .sheet/.alert 금지: transient 팝오버가 닫힐 때
+/// 고아 시트가 이후 클릭을 먹통내는 결함 회피.
 @MainActor
 struct ShopView: View {
     let store: CompanionStore
@@ -10,7 +11,7 @@ struct ShopView: View {
 
     var body: some View {
         let l = store.l
-        // 고정 높이 — 컬렉션/가방과 동일(팝오버 재오픈 시 fitting size 축소 방지).
+        // 고정 높이 — 홈/컬렉션과 동일(팝오버 재오픈 시 fitting size 축소 방지).
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 walletHeader(l)
@@ -20,7 +21,7 @@ struct ShopView: View {
                 ForEach(store.shopEntries, id: \.self) { entry in
                     switch entry {
                     case .item(let kind):
-                        ShopItemCard(store: store, kind: kind)
+                        ShopItemCard(store: store, nav: nav, kind: kind)
                     case .egg(let tier):
                         EggCard(store: store, nav: nav, tier: tier)
                     }
@@ -47,12 +48,13 @@ struct ShopView: View {
     }
 }
 
-/// 상점 아이템 1장 — 아이콘·이름·설명(사탕 XP / 민트 "성격 랜덤 변경")·보유수 + 가격/구매(인라인 확인).
+/// 아이템 1장 — 아이콘·이름·설명·보유수 + 구매 줄(인라인 확인) + 보유 중이면 사용 줄.
 /// kind 별 store.canBuy(kind)/buy(kind:count:) 로 일반화 — 판매 목록은 store.purchasableItems.
-/// 소모품은 수량 Stepper(가방의 사탕 일괄 사용과 같은 패턴)로 잔액 한도까지 한 번에 산다.
+/// 소모품은 수량 Stepper 로 잔액 한도까지 한 번에 산다.
 @MainActor
 private struct ShopItemCard: View {
     let store: CompanionStore
+    let nav: PopoverNavigation
     let kind: ItemKind
     @State private var confirming = false
     @State private var quantity = 1
@@ -77,24 +79,18 @@ private struct ShopItemCard: View {
                             Text(l.ownedCount(owned)).font(.caption2.weight(.bold))
                                 .foregroundStyle(.secondary).monospacedDigit()
                         }
-                        Spacer(minLength: 4)
-                        if showsQuantity {
-                            Stepper(value: $quantity, in: 1...maxQuantity) {
-                                Text("×\(selectedQuantity)").font(.callout.weight(.semibold)).monospacedDigit()
-                            }
-                            .fixedSize()
-                            .accessibilityLabel(l.itemName(kind))
-                            .accessibilityValue("\(selectedQuantity)")
-                        }
                     }
                     Text(l.itemDescription(kind))
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                // 바깥 Spacer 없음 — 이름 줄의 Spacer 가 남는 폭을 전부 받아 Stepper 를 카드 오른쪽 끝에
-                // 붙인다(가방 ItemCard 와 같은 구조). 둘 다 두면 남는 폭을 나눠 가져 Stepper 가 가운데에 뜬다.
+                Spacer(minLength: 0)
             }
             buyControls(l)
+            if !kind.isPassive && store.itemCount(kind) > 0 {
+                Divider()
+                ItemUseSection(store: store, nav: nav, kind: kind)
+            }
         }
         .padding(10)
         .background(Color.secondary.opacity(0.06))
@@ -124,7 +120,7 @@ private struct ShopItemCard: View {
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
                 Button(selectedQuantity > 1 ? "\(l.buy) ×\(selectedQuantity)" : l.buy) { buyNow() }
-                    .buttonStyle(.borderedProminent).controlSize(.small)
+                    .buttonStyle(.glassProminent).controlSize(.small)
                 Button(l.cancel) { confirming = false }
                     .buttonStyle(.borderless).controlSize(.small)
             }
@@ -134,9 +130,16 @@ private struct ShopItemCard: View {
                 Text("\(l.shopPriceLabel) \(TokenFormatter.compact(price * selectedQuantity))")
                     .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
                 Spacer()
+                if showsQuantity {
+                    QuantityStepper(value: $quantity, max: maxQuantity, label: l.itemName(kind))
+                }
                 if store.canBuy(kind) {
+                    if showsQuantity {
+                        Button(l.buyAll) { quantity = maxQuantity; confirming = true }
+                            .buttonStyle(.glass).controlSize(.small)
+                    }
                     Button(l.buy) { confirming = true }
-                        .buttonStyle(.bordered).controlSize(.small)
+                        .buttonStyle(.glass).controlSize(.small)
                 } else {
                     Text(l.notEnoughTokens)
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -218,10 +221,10 @@ private struct EggCard: View {
                         // 알 상태 — 리롤 대상이 없어 구매만 막는다(canBuyEgg 게이트). 항목을 숨기는 대신
                         // 비활성 버튼으로 "상점에 있긴 하다"를 보이고, 사유는 아래 한 줄로.
                         Button(l.buy) {}
-                            .buttonStyle(.bordered).controlSize(.small).disabled(true)
+                            .buttonStyle(.glass).controlSize(.small).disabled(true)
                     } else if store.canBuyEgg(tier) {
                         Button(l.buy) { stage = .confirm }
-                            .buttonStyle(.bordered).controlSize(.small)
+                            .buttonStyle(.glass).controlSize(.small)
                     } else {
                         Text(l.notEnoughTokens).font(.caption2).foregroundStyle(.tertiary)
                     }
@@ -241,7 +244,7 @@ private struct EggCard: View {
                 Button(l.buy) {
                     if store.isHighValueCompanion { stage = .preciousConfirm } else { commit() }
                 }
-                .buttonStyle(.borderedProminent).controlSize(.small)
+                .buttonStyle(.glassProminent).controlSize(.small)
                 Button(l.cancel) { stage = .idle }
                     .buttonStyle(.borderless).controlSize(.small)
             }
@@ -251,7 +254,7 @@ private struct EggCard: View {
                     .font(.caption2.weight(.semibold)).foregroundStyle(.orange).lineLimit(2)
                 Spacer()
                 Button(store.currentIsShiny && store.rarity != .legendary ? l.freshEggDiscardShiny : l.freshEggDiscardValuable) { commit() }
-                    .buttonStyle(.borderedProminent).controlSize(.small).tint(.orange)
+                    .buttonStyle(.glassProminent).controlSize(.small).tint(.orange)
                 Button(l.cancel) { stage = .idle }
                     .buttonStyle(.borderless).controlSize(.small)
             }
@@ -262,5 +265,125 @@ private struct EggCard: View {
     private func commit() {
         stage = .idle
         if store.buyEgg(tier) { nav.tab = .home }
+    }
+}
+
+/// 구매·사용 줄이 같이 쓰는 수량 Stepper("×n").
+@MainActor
+private struct QuantityStepper: View {
+    @Binding var value: Int
+    let max: Int
+    let label: String
+
+    var body: some View {
+        Stepper(value: $value, in: 1...Swift.max(1, max)) {
+            Text("×\(min(value, Swift.max(1, max)))").font(.caption.weight(.semibold)).monospacedDigit()
+        }
+        .controlSize(.small)
+        .fixedSize()
+        .accessibilityLabel(label)
+        .accessibilityValue("\(min(value, Swift.max(1, max)))")
+    }
+}
+
+/// 보유한 소모품의 사용 줄 — 사탕 미리보기(진화·졸업·버려지는 XP) + 수량 + 인라인 확인 사용.
+@MainActor
+private struct ItemUseSection: View {
+    let store: CompanionStore
+    let nav: PopoverNavigation
+    let kind: ItemKind
+    @State private var confirming = false
+    @State private var candyCount = 1
+
+    private var selectedCandyCount: Int { min(candyCount, max(1, store.maxRareCandyUseCount)) }
+
+    var body: some View {
+        let l = store.l
+        VStack(alignment: .leading, spacing: 6) {
+            if kind == .rareCandy, let preview = store.planRareCandyUse(count: selectedCandyCount) {
+                if preview.graduates {
+                    Text(l.candyGraduates).font(.caption2).foregroundStyle(.secondary)
+                }
+                if preview.discardedXP > 0 {
+                    let xp = TokenFormatter.compact(preview.discardedXP)
+                    Text(store.candyGraduationCarryover ? l.candyCarriedToEggXP(xp) : l.candyDiscardedXP(xp))
+                        .font(.caption2).foregroundStyle(store.candyGraduationCarryover ? Color.secondary : Color.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if preview.evolves && !preview.graduates {
+                    Text(l.candyCarryoverXP(TokenFormatter.compact(preview.carryoverXP)))
+                        .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            useControls(l)
+        }
+        .onChange(of: store.maxRareCandyUseCount) { _, _ in
+            candyCount = selectedCandyCount
+        }
+    }
+
+    /// 이 아이템을 지금 쓸 수 있나 (kind 별 — 사탕은 라인 로딩 필요).
+    private var canUse: Bool {
+        switch kind {
+        case .rareCandy: return store.canUseRareCandy
+        case .shinyCharm: return false   // 보유형 — 사용 개념 없음(상시 효과)
+        }
+    }
+
+    /// 사용 컨트롤 효과 힌트 ("+XP").
+    private func effectHint(_ l: L) -> String {
+        switch kind {
+        case .rareCandy: return "+\(TokenFormatter.compact(selectedCandyCount * RareCandy.xp)) XP"
+        case .shinyCharm: return l.shinyCharmEffectHint
+        }
+    }
+
+    private func performUse() {
+        switch kind {
+        case .rareCandy: _ = store.useRareCandy(count: selectedCandyCount)
+        case .shinyCharm: break   // 보유형 — 사용 동작 없음
+        }
+    }
+
+    @ViewBuilder
+    private func useControls(_ l: L) -> some View {
+        if canUse {
+            if confirming {
+                HStack(spacing: 8) {
+                    Text(l.useOnCurrent(store.displayName))
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer()
+                    Button(kind == .rareCandy ? "\(l.use) ×\(selectedCandyCount)" : l.use) { useNow() }
+                        .buttonStyle(.glassProminent).controlSize(.small)
+                    Button(l.cancel) { confirming = false }
+                        .buttonStyle(.borderless).controlSize(.small)
+                }
+            } else {
+                HStack {
+                    Text(effectHint(l))
+                        .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
+                    Spacer()
+                    // 한도 = 보유량과 졸업까지 필요한 개수 중 작은 쪽(maxRareCandyUseCount) — 남는 사탕은 보존.
+                    if kind == .rareCandy, store.maxRareCandyUseCount > 1 {
+                        QuantityStepper(value: $candyCount, max: store.maxRareCandyUseCount,
+                                        label: l.itemName(.rareCandy))
+                        Button(l.useAll) { candyCount = store.maxRareCandyUseCount; confirming = true }
+                            .buttonStyle(.glass).controlSize(.small)
+                    }
+                    Button(l.useItem) { confirming = true }
+                        .buttonStyle(.glass).controlSize(.small)
+                }
+            }
+        } else {
+            // 알(부화 전)/활성 없음/(사탕만)라인 미로딩 — 비활성 + 사유
+            Text(store.isEgg ? l.useAfterHatch : l.useNeedsPokemon)
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+
+    /// 사용 → 항상 Home 탭으로 전환(진화/졸업 연출·"+XP" 토스트는 Home 의 CompanionHeader 에서 재생).
+    private func useNow() {
+        confirming = false
+        performUse()
+        nav.tab = .home
     }
 }

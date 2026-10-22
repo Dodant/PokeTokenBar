@@ -422,8 +422,7 @@ struct EvoLineView: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)
                     .frame(width: 16, height: 16)
-                    .background(.regularMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
+                    .glassEffect(.regular.interactive(), in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(forward ? L(language).evolutionScrollNext : L(language).evolutionScrollPrevious)
@@ -642,9 +641,6 @@ struct CompanionHeader: View {
     @State private var seenCandySeq = -1
     @State private var candyXPShown = false
     @State private var candyXPAmount = 0     // 표시 순간 캡처(consume 후에도 텍스트 유지)
-    // 민트 사용 시 "반짝" 스파클 (성격 변경 피드백 — 텍스트 없이 짧은 이펙트)
-    @State private var seenMintSeq = -1
-    @State private var mintSparkle = false
 
     /// Hover tooltip for the growth bars: "X / Y · Z%". Used is clamped to total (egg usage can
     /// overshoot while a hatch retry is pending) and the percent floors, so 100% means done.
@@ -694,16 +690,6 @@ struct CompanionHeader: View {
                                 .offset(y: -16)
                         }
                     }
-                    .overlay {
-                        if mintSparkle {
-                            ZStack {
-                                Text("✨").font(.system(size: 22)).offset(x: -11, y: -9)
-                                Text("✨").font(.system(size: 15)).offset(x: 13, y: 5)
-                                Text("✨").font(.system(size: 12)).offset(x: 1, y: 13)
-                            }
-                            .transition(.scale.combined(with: .opacity))
-                        }
-                    }
                     // Outermost, so the celebration overlays and animations above stay intact.
                     // An egg has no species (nil) and therefore no link.
                     .modifier(DexEntryLink(
@@ -727,10 +713,8 @@ struct CompanionHeader: View {
                         }
                     }
                     if store.hasActive {
-                        // 단계 + 성격(부화 시 확정된 개체 아이덴티티)
-                        let nature = store.currentNature.map { " · \($0.name(store.language))" } ?? ""
                         HStack(spacing: 5) {
-                            Text(store.stageText + nature).font(.caption2).foregroundStyle(.secondary)
+                            Text(store.stageText).font(.caption2).foregroundStyle(.secondary)
                             if let multiplier = store.growthMultiplier {
                                 Badge(store.l.growthBoost(multiplier), tint: .orange, style: .tinted)
                                     .fixedSize()
@@ -799,12 +783,10 @@ struct CompanionHeader: View {
         .onAppear {
             playCelebrationIfNeeded()
             showCandyXPIfNeeded()
-            showMintIfNeeded()
             syncEggWiggle()
         }
         .onChange(of: store.celebrationSeq) { playCelebrationIfNeeded() }
         .onChange(of: store.candyFeedbackSeq) { showCandyXPIfNeeded() }
-        .onChange(of: store.mintFeedbackSeq) { showMintIfNeeded() }
         .onChange(of: eggImminent) { syncEggWiggle() }
         .task(id: store.currentForm) { await store.loadActiveFormNames() }   // The title names the form.
     }
@@ -849,18 +831,6 @@ struct CompanionHeader: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_300_000_000)
             withAnimation(.easeOut(duration: 0.4)) { candyXPShown = false }
-        }
-    }
-
-    /// 민트 사용 "반짝" 스파클 1회 재생 — 사탕과 동일 1회성 계약(consume 로 재마운트 재생 방지). 텍스트 없음.
-    private func showMintIfNeeded() {
-        guard store.mintFeedbackNature != nil, store.mintFeedbackSeq != seenMintSeq else { return }
-        seenMintSeq = store.mintFeedbackSeq
-        store.consumeMintFeedback()
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { mintSparkle = true }
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            withAnimation(.easeOut(duration: 0.4)) { mintSparkle = false }
         }
     }
 
@@ -955,9 +925,9 @@ struct DexSummaryHeader: View {
 ///
 /// 두 화면은 같은 데이터를 다른 축으로 본다:
 ///  - **도감**: 종 1개 = 1칸. 안농의 28개 글자는 상세 화면에서 모아 본다.
-///  - **로그**: 개체 1마리 = 1행. 같은 라인이 여러 행으로 나오는 게 정상 — 성격·획득 시각처럼
+///  - **로그**: 개체 1마리 = 1행. 같은 라인이 여러 행으로 나오는 게 정상 — 이로치·획득 시각처럼
 ///    개체에 딸린 정보는 여기에만 있다.
-/// 상위 탭(PopoverTab)은 그대로 4개 — 세그먼트 폭(332/2)이 넉넉해 탭바를 늘릴 필요가 없다.
+/// 상위 탭(PopoverTab)은 그대로 3개 — 세그먼트 폭(332/2)이 넉넉해 탭바를 늘릴 필요가 없다.
 @MainActor
 struct CollectionView: View {
     let store: CompanionStore
@@ -1015,12 +985,9 @@ struct CollectionView: View {
                 .frame(height: Self.contentHeight)
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                Picker("", selection: $nav.showingCollectionLog) {
-                    Text(store.l.dexTitle).tag(false)
-                    Text(store.l.catchLogTitle).tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                GlassTabBar(selection: $nav.showingCollectionLog, items: [
+                    (false, store.l.dexTitle), (true, store.l.catchLogTitle),
+                ])
 
                 filterToolbar
 
@@ -1047,7 +1014,7 @@ struct CollectionView: View {
     }
 
     private var filterToolbar: some View {
-        HStack(spacing: 6) {
+        GlassEffectContainer(spacing: 6) { HStack(spacing: 6) {
             HStack(spacing: 4) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -1067,14 +1034,9 @@ struct CollectionView: View {
                     .accessibilityLabel(store.l.clearFilters)
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
-            )
+            .glassEffect(.regular, in: Capsule())
 
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -1085,14 +1047,9 @@ struct CollectionView: View {
                     .font(.system(size: 13, weight: shinyOnly ? .bold : .regular))
                     .foregroundStyle(shinyOnly ? Color.yellow : Color.secondary)
                     .frame(width: 16, height: 16)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(shinyOnly ? Color.yellow.opacity(0.18) : Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(shinyOnly ? Color.yellow.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 0.5)
-                    )
+                    .padding(4)
+                    .glassEffect(shinyOnly ? .regular.tint(.yellow.opacity(0.25)).interactive() : .regular.interactive(),
+                                 in: Circle())
             }
             .buttonStyle(.plain)
             .help(store.l.filterShinyOnly)
@@ -1132,18 +1089,14 @@ struct CollectionView: View {
                     .foregroundStyle(isCustomSortActive ? Color.accentColor : Color.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
-                    .background(isCustomSortActive ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(isCustomSortActive ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.2), lineWidth: 0.5)
-                    )
+                    .glassEffect(isCustomSortActive ? .regular.tint(.accentColor.opacity(0.2)).interactive() : .regular.interactive(),
+                                 in: RoundedRectangle(cornerRadius: 6))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help(store.l.sortTitle)
             .accessibilityLabel(store.l.sortTitle)
-        }
+        } }
     }
 
     /// 포획 로그 — 개체 단위 기록. 필터(요약 헤더)는 고정, 목록만 스크롤한다
@@ -1215,7 +1168,7 @@ struct CollectionView: View {
                     resetFilters()
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .controlSize(.small)
             Spacer()
         }
@@ -1255,7 +1208,7 @@ struct RepresentativeFooterButton: View {
         .labelStyle(.iconOnly)
         .help(title)
         .accessibilityLabel(title)
-        .buttonStyle(.bordered)
+        .buttonStyle(.glass)
         .controlSize(.mini)
         .fixedSize()
     }
@@ -1457,7 +1410,7 @@ private struct DexGridView: View {
                     onResetFilters()
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .controlSize(.small)
             Spacer()
         }
@@ -1465,11 +1418,11 @@ private struct DexGridView: View {
     }
 
     private func header(_ all: [CompanionStore.DexSpecies]) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                Text(store.l.dexTitle).font(.callout.weight(.semibold))
-                Text(store.l.dexSpeciesTotal(all.count)).font(.caption).foregroundStyle(.secondary)
-            }
+        // 한 줄: 총 종 수(왼쪽) + 등급별 집계(오른쪽 끝). 탭 이름이 이미 "도감"이라 제목은 생략한다.
+        HStack(spacing: 6) {
+            Text(store.l.dexSpeciesTotal(all.count))
+                .font(.callout.weight(.semibold))
+                .fixedSize()
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(rarityDisplayOrder, id: \.self) { r in
@@ -1491,8 +1444,10 @@ private struct DexGridView: View {
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
-            .fixedSize(horizontal: false, vertical: true)
+            // 폭이 남으면 집계를 오른쪽 끝에 붙인다(넘치면 지금처럼 가로 스크롤, 시작 위치는 그대로).
+            .defaultScrollAnchor(.trailing, for: .alignment)
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func grid(_ slice: [CompanionStore.DexSpecies]) -> some View {
@@ -1792,7 +1747,6 @@ struct PokemonDetailView: View {
             HStack(spacing: 12) {
                 valuePair(store.l.level, "\(profile.level)")
                 valuePair(store.l.gender, store.l.genderLabel(profile.gender))
-                valuePair(store.l.nature, entry.nature?.name(store.language) ?? "—")
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(store.l.ability).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -1804,7 +1758,7 @@ struct PokemonDetailView: View {
                     Text("—").font(.callout.weight(.semibold))
                 }
             }
-            statsSection(PokemonStatCalculator.stats(details: details, profile: profile, nature: entry.nature))
+            statsSection(PokemonStatCalculator.stats(details: details, profile: profile))
             detailTitle(store.l.activeMoves)
             if profile.moves.isEmpty {
                 Text(store.l.noLevelMoves).font(.callout).foregroundStyle(.secondary)
@@ -1916,7 +1870,7 @@ private extension Array where Element == String {
     }
 }
 
-/// 도감 한 칸 — 도감 번호 + 스프라이트 + 종 이름. 종 정보만 담는다(성격·획득 횟수는 로그의 몫).
+/// 도감 한 칸 — 도감 번호 + 스프라이트 + 종 이름. 종 정보만 담는다(획득 횟수는 로그의 몫).
 /// 정적 스프라이트만 쓴다(animated 생략) — 한 페이지 16칸을 GIF 로 동시 재생하면 CPU 가 안 된다.
 @MainActor
 private struct DexSpeciesCell: View {
@@ -1936,32 +1890,39 @@ private struct DexSpeciesCell: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 1) {
-                // 이로치를 잡은 종은 이로치 스프라이트로 표시한다(상세 화면에서 일반/이로치 모습 전환 가능).
-                // 폼이 있는 종의 아이콘은 기본 폼 일반색으로 유지하고, 폼별 색은 상세 화면에서 보여준다.
-                SpriteView(speciesID: species.id, size: Self.thumb,
-                           shiny: formCount == nil && species.isShiny)
-                    .frame(width: Self.thumb, height: Self.thumb)
-                    // Keep the raising badge over the sprite to leave room for the name.
-                    .overlay(alignment: .bottom) {
-                        if species.isRaising { raisingBadge.fixedSize() }
-                    }
-                Text(formCount.map { "\(species.name) \($0)/\(formTotal)" } ?? species.name)
-                    .font(.system(size: 12))
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.center)
+            // The hidden copy reserves a two-line name so every cell keeps the same height; the
+            // visible stack is centered in it, so a one-line name no longer leaves the cell top-heavy.
+            ZStack {
+                VStack(spacing: 1) {
+                    Color.clear.frame(width: Self.thumb, height: Self.thumb)
+                    Text(" ").font(.system(size: 12)).lineLimit(2, reservesSpace: true)
+                }
+                .hidden()
+                VStack(spacing: 1) {
+                    // 이로치를 잡은 종은 이로치 스프라이트로 표시한다(상세 화면에서 일반/이로치 모습 전환 가능).
+                    // 폼이 있는 종의 아이콘은 기본 폼 일반색으로 유지하고, 폼별 색은 상세 화면에서 보여준다.
+                    SpriteView(speciesID: species.id, size: Self.thumb,
+                               shiny: formCount == nil && species.isShiny)
+                        .frame(width: Self.thumb, height: Self.thumb)
+                    Text(species.name)
+                        .font(.system(size: 12))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
             }
             .frame(maxWidth: .infinity)
             // Attach number and shiny markers to the full cell width.
             .overlay(alignment: .topLeading) { numberTag }
             .overlay(alignment: .topTrailing) {
-                // ✨ = 이 종의 이로치를 잡은 적이 있다는 표식.
-                if species.isShiny {
-                    Text("✨")
-                        .font(.system(size: 10))
-                        .padding(.horizontal, 2)
-                        .background(.regularMaterial, in: Capsule())
-                        .accessibilityLabel(store.l.dexShinyLabel)
+                HStack(spacing: 2) {
+                    // 수집한 폼 수 / 전체 폼 수 — 이름 옆이 아니라 우측 상단에 둔다.
+                    if let formCount {
+                        Text("\(formCount)/\(formTotal)")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 2)
+                            .background(.regularMaterial, in: Capsule())
+                    }
                 }
             }
             .padding(2)
@@ -1970,10 +1931,10 @@ private struct DexSpeciesCell: View {
             .background(isRepresentative ? Color.accentColor.opacity(0.16)
                                          : Color.secondary.opacity(isSelected ? 0.16 : 0.06))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            // 테두리 색 우선순위: 키우는 중(파랑) > 이로치 잡음(노랑) > 방금 클릭한 칸(accent).
             .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                if let borderColor {
+                    RoundedRectangle(cornerRadius: 8).strokeBorder(borderColor, lineWidth: 1.5)
                 }
             }
             // 호버 = 클릭 가능 피드백. 확대는 격자 간격 안에 머무는 폭으로만.
@@ -2029,11 +1990,10 @@ private struct DexSpeciesCell: View {
             .background(.regularMaterial, in: Capsule())
     }
 
-    /// "키우는 중"은 현재 개체의 현재 형태 한 칸에만 표시한다. accent 틴트는 반투명이라
-    /// 스프라이트가 비치므로 material 을 한 겹 깔아 대비를 확보한다(로그는 카드 배경 위라 불필요).
-    private var raisingBadge: some View {
-        Badge(store.l.dexRaising.uppercased(), tint: .accent, style: .tinted, size: 10)
-            .background(.regularMaterial, in: Capsule())
+    private var borderColor: Color? {
+        if species.isRaising { return .blue }
+        if species.isShiny { return .yellow }
+        return isSelected ? .accentColor : nil
     }
 
     /// 툴팁과 접근성 라벨이 같은 문장을 쓴다 — 칸이 글자로 못 보여주는 희귀도를 담는다.
@@ -2048,7 +2008,7 @@ private struct DexSpeciesCell: View {
     }
 }
 
-/// 포획 로그 한 항목 — 희귀도·성격 헤더 + 진화 체인 스프라이트(각 밑에 종 이름) + 잡은 시각.
+/// 포획 로그 한 항목 — 희귀도 헤더 + 진화 체인 스프라이트(각 밑에 종 이름) + 잡은 시각.
 /// 체인 각 종의 이름은 저장분이 있으면 body 에서 즉시(플래시 없음), 없으면(구버전) .task 로 조회 후 백필.
 @MainActor
 private struct DexEntryRow: View {
@@ -2080,10 +2040,6 @@ private struct DexEntryRow: View {
                         .accessibilityLabel(store.l.dexShinyLabel)
                 }
                 Spacer()
-                if let nature = entry.nature {
-                    Text(nature.name(store.language))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                }
             }
             EvoLineView(nodes: entry.chainOrder.map { EvoLineItem(.species($0), .done) },
                         mysteryLabel: store.l.unknownNextEvolution, language: store.language, thumb: 68,

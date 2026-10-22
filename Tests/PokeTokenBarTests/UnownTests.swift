@@ -72,12 +72,12 @@ final class UnownTests: XCTestCase {
 
     private func mon(_ form: PokemonForm?, shiny: Bool = false, speciesID: Int = 201) -> MonState {
         MonState(baseID: speciesID, pathIDs: [speciesID], stageIndex: 0, usedAtStage: 123,
-                 rarity: .common, totalForms: 1, isShiny: shiny, nature: .brave, form: form)
+                 rarity: .common, totalForms: 1, isShiny: shiny, form: form)
     }
 
     private func entry(_ form: PokemonForm?, shiny: Bool = false, speciesID: Int = 201) -> DexEntry {
         DexEntry(baseID: speciesID, finalID: speciesID, chainOrder: [speciesID], rarity: .common,
-                 caughtAt: now, isShiny: shiny, nature: .brave,
+                 caughtAt: now, isShiny: shiny,
                  names: [speciesID: ["ko": "안농", "en": "Unown"]], form: form)
     }
 
@@ -91,14 +91,16 @@ final class UnownTests: XCTestCase {
 
     private func store(_ state: CompanionState = CompanionState(), seed: UInt64 = 7,
                        at url: URL? = nil,
-                       provider: any PokeProviding = UnownTestProvider()) throws -> CompanionStore {
+                       provider: any PokeProviding = UnownTestProvider(),
+                       rng: (any RandomNumberGenerator)? = nil) throws -> CompanionStore {
         let destination = try url ?? stateURL()
         try JSONEncoder().encode(state).write(to: destination)
-        return reload(at: destination, seed: seed, provider: provider)
+        return reload(at: destination, seed: seed, provider: provider, rng: rng)
     }
 
     private func reload(at url: URL, seed: UInt64 = 7,
-                        provider: any PokeProviding = UnownTestProvider()) -> CompanionStore {
+                        provider: any PokeProviding = UnownTestProvider(),
+                        rng: (any RandomNumberGenerator)? = nil) -> CompanionStore {
         let date = now
         let suite = "unown-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -106,7 +108,7 @@ final class UnownTests: XCTestCase {
         defaults.set(1.0, forKey: "shopDifficulty")
         addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
         return CompanionStore(provider: provider, clock: { date },
-                              fileURL: url, rng: SeededRNG(seed: seed),
+                              fileURL: url, rng: rng ?? SeededRNG(seed: seed),
                               dittoDisguiseRollingEnabled: false, defaults: defaults)
     }
 
@@ -166,12 +168,12 @@ final class UnownTests: XCTestCase {
         XCTAssertTrue(s.isRepresentative(try XCTUnwrap(s.dexSpecies.first)))
     }
 
-    func testHatchUsesOwnedFormWeightsAfterUnchangedShinyNatureAndProfileRolls() async throws {
+    func testHatchUsesOwnedFormWeightsAfterUnchangedShinyAndProfileRolls() async throws {
         var original = CompanionState()
         original.dex = PokemonForm.unownLetters.dropLast().map { entry($0) }
         let seed = try XCTUnwrap((UInt64(0)..<1_000).first { seed in
             var rng = SeededRNG(seed: seed)
-            _ = rng.next(); _ = rng.next(); _ = rng.next()
+            _ = rng.next(); _ = rng.next()   // shiny, profile seed
             let roll = rng.next()
             return roll % 29 == 27 && roll % 56 / 2 != 27
         })
@@ -180,27 +182,26 @@ final class UnownTests: XCTestCase {
         XCTAssertEqual(s.currentForm, .question, "The missing form occupies both final slots of the weighted pool")
     }
 
-    func testPrefetchUsesOwnedFormWeights() async throws {
+    /// A drawn line comes back only for its missing forms, so the form roll draws among those.
+    func testPrefetchDrawsOnlyMissingFormsOfDrawnLine() async throws {
         var original = CompanionState()
         original.installBaselineSet = true
         original.lastDate = "d1"
         original.dex = PokemonForm.unownLetters.dropLast().map { entry($0) }
-        let seed = try XCTUnwrap((UInt64(0)..<1_000).first { seed in
-            var rng = SeededRNG(seed: seed)
-            _ = rng.next() // Species selection precedes form selection.
-            let roll = rng.next()
-            return roll % 29 == 27 && roll % 56 / 2 != 27
-        })
-        let signal = UnownPrefetchSignal()
-        let s = try store(original, seed: seed, provider: UnownPrefetchProvider(lineRequested: signal))
-        s.update(todayTokensByProvider: ["test": 1_000], todayDate: "d1", monthTotal: 0,
-                 burnTier: .idle, limitWarning: false, hasUsageData: true)
-        await signal.wait()
-        XCTAssertEqual(s.state.pendingHatchID, 201)
-        XCTAssertEqual(s.state.pendingForm, .question)
+        for seed: UInt64 in [0, 1, 7, 42] {
+            let signal = UnownPrefetchSignal()
+            let s = try store(original, seed: seed, provider: UnownPrefetchProvider(lineRequested: signal))
+            s.update(todayTokensByProvider: ["test": 1_000], todayDate: "d1", monthTotal: 0,
+                     burnTier: .idle, limitWarning: false, hasUsageData: true)
+            await signal.wait()
+            XCTAssertEqual(s.state.pendingHatchID, 201)
+            XCTAssertEqual(s.state.pendingForm, .question, "seed \(seed)")
+        }
     }
 
-    func testFormOwnershipDoesNotChangeSpeciesSelectionOrShinyRolls() async throws {
+    /// Owned forms keep the species weights until every form is owned; then the line leaves the
+    /// pool and only a shiny roll (which re-draws from the full pool) brings it back.
+    func testFormOwnershipKeepsSpeciesWeightsUntilLineIsDrawnOut() async throws {
         var selectedSpecies = Set<Int>()
         for seed: UInt64 in [1, 7, 17, 42, 128, 999] {
             for forms in [[], [PokemonForm.b], PokemonForm.unownLetters] {
@@ -211,14 +212,15 @@ final class UnownTests: XCTestCase {
                 let s = try store(original, seed: seed, provider: UnownSelectionProvider())
                 var rng = SeededRNG(seed: seed)
                 // Existing species weights: Pikachu 255, collected Unown floor(225 / 2) = 112.
-                let expectedSpecies = rng.next() % 367 < 255 ? 25 : 201
+                let drawnOut = forms.count == PokemonForm.unownLetters.count
+                let speciesRoll = rng.next()
+                var expectedSpecies = drawnOut ? 25 : (speciesRoll % 367 < 255 ? 25 : 201)
                 let expectedShiny = rng.next() % PokemonOdds.shinyDenominator == 0
-                let expectedNature = PokemonNature.allCases[Int(rng.next() % UInt64(PokemonNature.allCases.count))]
+                if expectedShiny { expectedSpecies = rng.next() % 367 < 255 ? 25 : 201 }
                 let expectedProfileSeed = rng.next()
                 await s.hatchIfNeeded()
                 XCTAssertEqual(s.currentSpeciesID, expectedSpecies)
                 XCTAssertEqual(s.currentIsShiny, expectedShiny)
-                XCTAssertEqual(s.currentNature, expectedNature)
                 XCTAssertEqual(s.state.active?.profile?.seed, expectedProfileSeed)
                 selectedSpecies.insert(try XCTUnwrap(s.currentSpeciesID))
             }
@@ -316,13 +318,11 @@ final class UnownTests: XCTestCase {
             let seed = try XCTUnwrap((UInt64(0)..<20_000).first { seed in
                 var rng = SeededRNG(seed: seed)
                 let matchesShiny = (rng.next() % PokemonOdds.shinyDenominator == 0) == shiny
-                _ = rng.next() // nature
                 _ = rng.next() // profile seed
                 return matchesShiny && rng.next() % 56 / 2 != 0
             })
             var rng = SeededRNG(seed: seed)
             _ = rng.next()
-            let nature = PokemonNature.allCases[Int(rng.next() % UInt64(PokemonNature.allCases.count))]
             let profileSeed = rng.next()
             let form = PokemonForm.unownLetters[Int(rng.next() % 56 / 2)]
             let url = try stateURL()
@@ -331,7 +331,6 @@ final class UnownTests: XCTestCase {
             await s.hatch(baseID: 201)
             XCTAssertEqual(s.currentForm, form)
             XCTAssertEqual(s.currentIsShiny, shiny)
-            XCTAssertEqual(s.currentNature, nature)
             let profile = try XCTUnwrap(s.state.active?.profile)
             XCTAssertEqual(profile.seed, profileSeed)
             XCTAssertTrue(s.setRepresentativeSpeciesID(201, form: form))
@@ -342,7 +341,6 @@ final class UnownTests: XCTestCase {
             XCTAssertEqual(s.state.dex.count, 1)
             XCTAssertEqual(s.state.dex.first?.form, form)
             XCTAssertEqual(s.state.dex.first?.isShiny, shiny)
-            XCTAssertEqual(s.state.dex.first?.nature, nature)
             XCTAssertEqual(s.state.dex.first?.profile?.instanceID, profile.instanceID)
             XCTAssertEqual(s.state.dex.first?.profile?.ivs, profile.ivs)
             XCTAssertEqual(s.state.dex.first?.profile?.level, 100)
@@ -356,24 +354,22 @@ final class UnownTests: XCTestCase {
         }
     }
 
-    /// 다른 종에는 추가 폼 롤이 없어야 이후 민트 등 기존 난수 결과도 바뀌지 않는다.
+    /// 다른 종에는 추가 폼 롤이 없어야 이후 기존 난수 결과도 바뀌지 않는다.
     func testNonUnownHatchDoesNotConsumeAnExtraRandomDraw() async throws {
-        var original = CompanionState()
-        original.inventory = ["mint": 1]
-        let s = try store(original, seed: 17)
+        let otherRNG = CountingRNG(seed: 17)
+        let other = try store(seed: 17, rng: otherRNG)
         var rng = SeededRNG(seed: 17)
         let shiny = rng.next() % PokemonOdds.shinyDenominator == 0
-        let nature = PokemonNature.allCases[Int(rng.next() % UInt64(PokemonNature.allCases.count))]
         let profileSeed = rng.next()
-        let mintPool = PokemonNature.allCases.filter { $0 != nature }
-        let nextNature = mintPool[Int(rng.next() % UInt64(mintPool.count))]
 
-        await s.hatch(baseID: 25)
-        XCTAssertNil(s.currentForm)
-        XCTAssertEqual(s.currentIsShiny, shiny)
-        XCTAssertEqual(s.currentNature, nature)
-        XCTAssertEqual(s.state.active?.profile?.seed, profileSeed)
-        XCTAssertEqual(s.useMint(), nextNature)
+        await other.hatch(baseID: 25)
+        XCTAssertNil(other.currentForm)
+        XCTAssertEqual(other.currentIsShiny, shiny)
+        XCTAssertEqual(other.state.active?.profile?.seed, profileSeed)
+
+        let unownRNG = CountingRNG(seed: 17)
+        await (try store(seed: 17, rng: unownRNG)).hatch(baseID: 201)
+        XCTAssertEqual(unownRNG.callCount, otherRNG.callCount + 1, "only Unown rolls a form")
     }
 
     func testDexDeduplicatesPerLetterAndScopesShinyAndRaisingFlags() throws {
@@ -532,10 +528,12 @@ final class UnownTests: XCTestCase {
         let seed = try XCTUnwrap((UInt64(0)..<1_000).first { seed in
             var rng = SeededRNG(seed: seed)
             _ = rng.next()
+            guard rng.next() % PokemonOdds.shinyDenominator != 0 else { return false }
             return rng.next() % 56 / 2 != 0
         })
         var prefetchRNG = SeededRNG(seed: seed)
         _ = prefetchRNG.next() // 종 선택
+        _ = prefetchRNG.next() // 이로치(종과 함께 pre-roll)
         let expectedForm = PokemonForm.unownLetters[Int(prefetchRNG.next() % 56 / 2)]
         let signal = UnownPrefetchSignal()
         let url = try stateURL()
@@ -554,9 +552,7 @@ final class UnownTests: XCTestCase {
         // 새 RNG라면 원래 다른 글자가 나오는 시드로 재실행해도 pending 글자를 사용한다.
         let restartedSeed = try XCTUnwrap((UInt64(0)..<1_000).first { seed in
             var rng = SeededRNG(seed: seed)
-            _ = rng.next() // shiny
-            _ = rng.next() // nature
-            _ = rng.next() // profile seed
+            _ = rng.next() // profile seed (shiny 는 pre-roll 값을 쓴다)
             return PokemonForm.unownLetters[Int(rng.next() % 56 / 2)] != expectedForm
         })
         persisted.eggUsage = PokemonBalance.eggHatchThreshold

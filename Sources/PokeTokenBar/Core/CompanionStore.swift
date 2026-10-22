@@ -32,11 +32,6 @@ final class CompanionStore {
     /// 홈으로 재진입할 때(CompanionHeader 재마운트) @State 가 초기화돼 같은 값이 다시 떠오른다(회귀).
     func consumeCandyFeedback() { candyFeedbackAmount = 0 }
 
-    /// 민트 사용 시 "성격이 X로" 순간 표시 — 사탕 피드백과 동일 1회성 패턴(seq + consume).
-    private(set) var mintFeedbackSeq = 0
-    private(set) var mintFeedbackNature: PokemonNature?
-    func consumeMintFeedback() { mintFeedbackNature = nil }
-
     private let provider: any PokeProviding
     private var dexNameRequests: [Int: Task<EvoLine, Error>] = [:]
     private let detailProvider: (any PokemonDetailProviding)?
@@ -64,6 +59,10 @@ final class CompanionStore {
     private(set) var growthDifficulty: Double
     /// 상점 배율 — 아이템·알 가격에 곱한다. 낮을수록 싸다.
     private(set) var shopDifficulty: Double
+    /// 사탕으로 졸업할 때 남는 XP 를 다음 알 인큐베이션(eggUsage)으로 넘길지 — 취향 설정이라 난이도와 같이 UserDefaults.
+    var candyGraduationCarryover: Bool {
+        didSet { defaults.set(candyGraduationCarryover, forKey: "candyGraduationCarryover") }
+    }
 
     init(provider: any PokeProviding = PokeAPIClient.shared,
          detailProvider: (any PokemonDetailProviding)? = nil,
@@ -86,6 +85,7 @@ final class CompanionStore {
         growthDifficulty = PokemonBalance.clampDifficulty(storedGrowth)
         shopDifficulty = PokemonBalance.clampDifficulty(
             defaults.object(forKey: "shopDifficulty") as? Double ?? PokemonBalance.defaultDifficulty)
+        candyGraduationCarryover = defaults.bool(forKey: "candyGraduationCarryover")
         load()
         if previousGrowth != growthDifficulty {
             rescaleBankedGrowth(from: previousGrowth, to: growthDifficulty)
@@ -185,7 +185,6 @@ final class CompanionStore {
     var isHighValueCompanion: Bool {
         currentIsShiny || rarity == .legendary
     }
-    var currentNature: PokemonNature? { state.active?.nature }
     var growthMultiplier: Int? {
         state.active?.hasGrowthBoost == true ? PokemonBalance.repeatGrowthMultiplier : nil
     }
@@ -316,7 +315,6 @@ final class CompanionStore {
             rarity: active.rarity,
             caughtAt: nil,
             isShiny: currentIsShiny,   // 위장 메타몽은 리빌 전까지 이로치를 숨긴다(판정 단일 소스)
-            nature: active.nature,
             profile: active.profile,
             names: currentLine.map { line in
                 Dictionary(uniqueKeysWithValues:
@@ -347,7 +345,6 @@ final class CompanionStore {
             rarity: a.rarity,
             caughtAt: now,
             isShiny: currentIsShiny,
-            nature: a.nature,
             profile: a.profile,
             names: currentLine.map { line in
                 Dictionary(uniqueKeysWithValues:
@@ -1031,7 +1028,7 @@ final class CompanionStore {
         state.dex.append(DexEntry(id: a.profile?.instanceID ?? UUID().uuidString,
                                   baseID: a.baseID, finalID: finalID,
                                   chainOrder: a.pathIDs, rarity: a.rarity, caughtAt: clock(),
-                                  isShiny: a.isShiny, nature: a.nature,
+                                  isShiny: a.isShiny,
                                   profile: a.profile,
                                   names: currentLine.map { line in   // 체인 각 종의 다국어 이름 저장(표시 즉시)
                                       Dictionary(uniqueKeysWithValues:
@@ -1144,31 +1141,17 @@ final class CompanionStore {
         candyFeedbackAmount = xp
         candyFeedbackSeq += 1
         applyUsage(xp)   // Saves inventory and growth together, with existing evolution effects.
-        if state.active == nil { return .graduated }
+        if state.active == nil {
+            // graduate() 가 eggUsage 를 0 으로 연 직후 — 남은 XP 를 새 알에 넣는다. 부화 임계를 넘으면
+            // 다음 update() 가 부화시키고, 부화 초과분은 기존 규칙대로 부화체 성장으로 이월된다.
+            if candyGraduationCarryover, preview.graduates, preview.discardedXP > 0 {
+                state.eggUsage += preview.discardedXP
+                save()
+            }
+            return .graduated
+        }
         if state.active!.stageIndex > beforeStage { return .evolved }
         return .progressed
-    }
-
-    // MARK: 민트 (성격 랜덤 재설정)
-
-    /// 민트 사용 가능 — 활성 포켓몬 + 재고>0. 성격은 MonState 에만 있어 진화 라인 로딩과 무관하다
-    /// (사탕과 달리 currentLine 조건 없음 — 재시작 직후·오프라인에도 사용 가능).
-    var canUseMint: Bool { hasActive && itemCount(.mint) > 0 }
-
-    /// 민트 1개 사용 — 현재 포켓몬 성격을 '현재와 다른' 무작위 성격으로 교체(반드시 바뀐다). 성장·shiny·
-    /// 종·usedAtStage·통계 전부 무관(순수 코스메틱). 사용 불가면 nil(무소모). 바뀐 성격을 반환(피드백용).
-    @discardableResult
-    func useMint() -> PokemonNature? {
-        guard canUseMint, state.active != nil else { return nil }
-        let cur = state.active!.nature
-        let pool = PokemonNature.allCases.filter { $0 != cur }   // cur=nil(구버전 개체)이면 25종 전체
-        let new = pool[Int(rng.next() % UInt64(pool.count))]
-        state.active!.nature = new
-        state.inventory[ItemKind.mint.rawValue] = itemCount(.mint) - 1
-        mintFeedbackNature = new
-        mintFeedbackSeq += 1
-        save()
-        return new
     }
 
     // MARK: 상점 (재화 = 사용한 토큰)
@@ -1240,6 +1223,9 @@ final class CompanionStore {
         guard count >= 1, count <= maxBuyCount(kind), let price = price(of: kind) else { return false }
         state.spentTokens += price * count
         state.inventory[kind.rawValue, default: 0] += count
+        // 이로치는 종과 함께 미리 뽑는다. 부적 전에 뽑은 "일반" 결과는 버려 부화가 부적 분모로 다시 굴리게
+        // 한다 — 부적이 지금 알에도 적용되고, 부화 알림의 분모가 판정과 맞는다. 이미 당첨된 이로치는 유지.
+        if kind == .shinyCharm, state.pendingShiny == false { state.pendingShiny = nil }
         save()
         return true
     }
@@ -1293,6 +1279,7 @@ final class CompanionStore {
         state.eggTier = tier          // 등급 보증(nil = 보증 없음)
         state.pendingHatchID = nil    // 새 보증으로 처음부터 롤(활성 포켓몬이 있는 동안엔 원래 비어 있다)
         state.pendingForm = nil
+        state.pendingShiny = nil
         prefetchedLineID = nil
         justGraduated = nil; justEvolvedTo = nil; eventUntil = nil
         AppLog.write("egg purchased: discarded active, tier=\(tier?.rawValue ?? "none")")
@@ -1448,23 +1435,23 @@ final class CompanionStore {
         isHatching = true
         defer { isHatching = false }
         // 프리패칭된 종이 있으면 그대로 사용(라인·스프라이트 예열됨 → 딜레이 ~0), 없으면 지금 롤.
-        let base: Int?
+        let rolled: (id: Int, isShiny: Bool?)?
         if let pending = state.pendingHatchID {
-            base = pending
+            rolled = (pending, state.pendingShiny)
         } else {
-            base = await chooseBase()
+            rolled = await chooseBase().map { ($0.id, $0.isShiny) }
         }
         guard isCurrentReadyEgg(generation: generation) else {
             AppLog.write("hatch: discarded before result handling — subject replaced during species roll")
             kickLineLoadIfNeeded()
             return
         }
-        guard let base else {
+        guard let rolled else {
             isHatchRetryDelayed = true
             return
         }
-        let pendingForm = state.pendingHatchID == base ? state.pendingForm : nil
-        await hatchCore(baseID: base, generation: generation, form: pendingForm)
+        let pendingForm = state.pendingHatchID == rolled.id ? state.pendingForm : nil
+        await hatchCore(baseID: rolled.id, generation: generation, form: pendingForm, shiny: rolled.isShiny)
     }
 
     /// 부화가 폐기된 뒤 남은 개체(대개 방금 불러온 개체)의 진화 라인을 다시 로드한다.
@@ -1515,12 +1502,13 @@ final class CompanionStore {
             // await 사이에 부화가 끝났거나(active != nil) 상태가 통째로 교체됐으면(세이브 불러오기)
             // 이 롤을 버린다 — 안 그러면 불러온 알의 pre-roll 을 남의 롤로 덮어쓴다.
             guard isCurrentEgg(generation: generation) else { return }
-            guard let id = selected else {
+            guard let selected else {
                 markHatchRetryDelayedIfReady(generation: generation)
                 return
             }
-            state.pendingHatchID = id
-            state.pendingForm = rollLineForm(baseID: id)
+            state.pendingHatchID = selected.id
+            state.pendingShiny = selected.isShiny
+            state.pendingForm = rollLineForm(baseID: selected.id)
             save()
         }
         guard let id = state.pendingHatchID else { return }
@@ -1556,10 +1544,13 @@ final class CompanionStore {
     }
 
     /// Draws only for lines with forms, so other species keep their random sequence.
+    /// An already-drawn line only comes back for its missing forms, so it draws among those.
     private func rollLineForm(baseID: Int) -> PokemonForm? {
         let forms = PokemonForm.lineForms(baseID: baseID)
         guard !forms.isEmpty else { return nil }
-        return PokemonForm.roll(rng.next(), among: forms, collected: state.collectedLineForms(baseID: baseID))
+        let collected = state.collectedLineForms(baseID: baseID)
+        let missing = forms.filter { !collected.contains($0) }
+        return PokemonForm.roll(rng.next(), among: missing.isEmpty ? forms : missing, collected: collected)
     }
 
     /// Warms the localized names the hatch, evolution and graduation messages of this line show.
@@ -1614,7 +1605,8 @@ final class CompanionStore {
     }
 
     /// 실제 부화 로직 — isHatching 락은 호출자(hatch / hatchIfNeeded)가 소유·해제한다.
-    private func hatchCore(baseID: Int, generation: Int, form pendingForm: PokemonForm? = nil) async {
+    private func hatchCore(baseID: Int, generation: Int, form pendingForm: PokemonForm? = nil,
+                           shiny pendingShiny: Bool? = nil) async {
         let line: EvoLine
         do {
             line = try await provider.line(baseSpeciesID: baseID)
@@ -1638,6 +1630,7 @@ final class CompanionStore {
             AppLog.write("hatch: rolled \(line.rarity) below guaranteed \(tier) — discarded, re-roll next tick")
             state.pendingHatchID = nil
             state.pendingForm = nil
+            state.pendingShiny = nil
             prefetchedLineID = nil
             markHatchRetryDelayedIfReady(generation: generation)
             save()
@@ -1645,6 +1638,7 @@ final class CompanionStore {
         }
         state.pendingHatchID = nil
         state.pendingForm = nil
+        state.pendingShiny = nil
         // A later egg can roll the same species with another form and must warm its own sprite.
         prefetchedLineID = nil
         currentLine = line
@@ -1653,11 +1647,10 @@ final class CompanionStore {
         let overflow = max(0, state.eggUsage - eggHatchThreshold)
         state.eggUsage = 0
         state.eggTier = nil   // 보증은 이 부화로 소비된다(다음 알은 다시 무보증)
-        // 개체 롤 — shiny(1/64, 부적 1/48)·성격(25종)은 부화 순간 확정, 진화해도 유지.
+        // 개체 롤 — shiny(1/64, 부적 1/48)는 종과 함께 미리 뽑았으면 그 값, 아니면 부화 순간 확정. 진화해도 유지.
         // 알림 문구는 이 판정과 같은 분모를 보여준다.
         let shinyOdds = shinyDenominator
-        let isShiny = Self.rollsShiny(roll: rng.next(), charmOwned: ownsShinyCharm)
-        let nature = PokemonNature.allCases[Int(rng.next() % UInt64(PokemonNature.allCases.count))]
+        let isShiny = pendingShiny ?? Self.rollsShiny(roll: rng.next(), charmOwned: ownsShinyCharm)
         // 메타몽 위장 롤 — common·≥2형태에 한해 1/128. .app 게이트(&& 단락 → 비앱에선 rng 미소비로
         // 기존 테스트 RNG 시퀀스 무영향). 위장/리빌 로직은 상태 기반으로 별도 테스트한다.
         var dittoDisguise: Int?
@@ -1675,7 +1668,7 @@ final class CompanionStore {
         activeGeneration += 1
         state.active = MonState(baseID: line.baseID, pathIDs: [line.baseID], plannedPathIDs: evolutionPlan,
                                 stageIndex: 0, usedAtStage: 0, rarity: line.rarity, totalForms: evolutionPlan.count,
-                                isShiny: isShiny, nature: nature, profile: profile, hasGrowthBoost: hasGrowthBoost,
+                                isShiny: isShiny, profile: profile, hasGrowthBoost: hasGrowthBoost,
                                 dittoDisguise: dittoDisguise, form: form)
         AppLog.write("hatch: base=\(line.baseID) rarity=\(line.rarity) shiny=\(isShiny) forms=\(evolutionPlan.count) boost=\(hasGrowthBoost) ditto=\(dittoDisguise != nil)")
         let name = formDisplayName(line.localizedName(line.baseID, state.language),
@@ -1694,7 +1687,7 @@ final class CompanionStore {
     }
 
     /// 위장 → 리빌: 진화 못 하는 메타몽이 "첫 진화 임계"에서 진화 대신 정체를 드러내는 순간.
-    /// Ditto 라인 로드 후 상태 변환(rare·단일형태·초과분 이월, isShiny/nature 유지) + 연출·알림.
+    /// Ditto 라인 로드 후 상태 변환(rare·단일형태·초과분 이월, isShiny 유지) + 연출·알림.
     private func revealDitto() async {
         guard let a = state.active, a.dittoDisguise != nil, !a.dittoRevealed, !isRevealingDitto else { return }
         let generation = activeGeneration
@@ -1711,7 +1704,7 @@ final class CompanionStore {
         guard m.usedAtStage >= latestFirstEvoThr else { return }
         let disguiseName = currentLine?.localizedName(m.baseID, state.language) ?? "#\(m.baseID)"
         let carryOver = max(0, m.usedAtStage - latestFirstEvoThr)   // 위장체 첫 진화 초과분 → 메타몽 성장 이월
-        // 메타몽으로 전환 — rarity/forms 는 로드한 라인에서, isShiny/nature/dittoDisguise 는 유지.
+        // 메타몽으로 전환 — rarity/forms 는 로드한 라인에서, isShiny/dittoDisguise 는 유지.
         let previousRarity = m.rarity
         m.baseID = dittoLine.baseID
         let evolutionPlan = makeEvolutionPlan(from: dittoLine.tree, baseID: dittoLine.baseID)
@@ -1779,17 +1772,28 @@ final class CompanionStore {
     ///      단, 이미 수집한 base 는 가중치 ½(미수집 부스트 — 재부화/shiny 사냥은 열어둠)
     ///   ③ 누적 가중치에서 정확히 1롤 — 루프/재롤 없음, 시간 상한 확정적
     /// 인덱스 취득 실패(오프라인 + 캐시 없음) 시 nil → 알 유지, 다음 갱신 틱 재시도.
-    private func chooseBase() async -> Int? {
+    /// 종과 이로치를 함께 뽑는다 — 이미 뽑은 라인은 못 모은 폼이 남았거나 이로치가 당첨됐을 때만 다시 나온다.
+    /// 이로치는 종 다음에 뽑아 기존 rng 순서(종 → 이로치)를 지킨다. 당첨되면 이미 뽑은 라인까지 넣어 다시 뽑는다.
+    private func chooseBase() async -> (id: Int, isShiny: Bool)? {
+        guard let id = await chooseBaseID(allowingDrawn: false) else { return nil }
+        guard Self.rollsShiny(roll: rng.next(), charmOwned: ownsShinyCharm) else { return (id, false) }
+        return await chooseBaseID(allowingDrawn: true).map { ($0, true) }
+    }
+
+    private func chooseBaseID(allowingDrawn: Bool) async -> Int? {
         let tier = state.eggTier
         if let full = try? await provider.baseSpeciesIndex(), !full.isEmpty {
             // 등급 보증 알은 후보를 먼저 좁힌다 — capture_rate 상한이 곧 등급 하한이므로
             // (Rarity.captureRateCeiling) 전설도 자연히 포함된다("희귀 이상"에 전설이 들어가는 게 정상).
             // 좁힌 결과가 비면 보증을 못 지키므로 전체 풀로 폴백하지 말고 알을 유지한다(다음 틱 재시도).
-            let index = tier.map { t in full.filter { t.includes(captureRate: $0.captureRate) } } ?? full
-            guard !index.isEmpty else {
+            let tiered = tier.map { t in full.filter { t.includes(captureRate: $0.captureRate) } } ?? full
+            guard !tiered.isEmpty else {
                 AppLog.write("hatch: no candidate for guaranteed \(tier?.rawValue ?? "none") — egg kept, retry next tick")
                 return nil
             }
+            // 이미 뽑은 라인은 뺀다. 후보를 다 모았으면(도감 완성) 알이 영영 안 깨지지 않게 중복을 허용한다.
+            let undrawn = allowingDrawn ? tiered : tiered.filter { !state.isLineDrawnOut(baseID: $0.id) }
+            let index = undrawn.isEmpty ? tiered : undrawn
             let weights = index.map { e in
                 CollectionWeight.adjusted(e.captureRate, isCollected: state.hasCollectedFinal(forBaseID: e.id))
             }
@@ -1879,10 +1883,9 @@ final class CompanionStore {
         eventUntil = nil
         celebration = nil
         isHatchRetryDelayed = false
-        // 이전 개체 기준의 1회성 피드백(사탕 +XP·민트 성격)도 비운다 — 안 비우면 불러온 직후 남의
+        // 이전 개체 기준의 1회성 피드백(사탕 +XP)도 비운다 — 안 비우면 불러온 직후 남의
         // 개체에 대한 "+XP" 가 새 개체 위에 떠오른다.
         candyFeedbackAmount = 0
-        mintFeedbackNature = nil
         displayState = state.active != nil ? .idle : .egg
         migratePokemonProfilesIfNeeded()
         save()
