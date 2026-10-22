@@ -1419,11 +1419,11 @@ private struct DexGridView: View {
     }
 
     private func header(_ all: [CompanionStore.DexSpecies]) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                Text(store.l.dexTitle).font(.callout.weight(.semibold))
-                Text(store.l.dexSpeciesTotal(all.count)).font(.caption).foregroundStyle(.secondary)
-            }
+        // 한 줄: 총 종 수(왼쪽) + 등급별 집계(오른쪽 끝). 탭 이름이 이미 "도감"이라 제목은 생략한다.
+        HStack(spacing: 6) {
+            Text(store.l.dexSpeciesTotal(all.count))
+                .font(.callout.weight(.semibold))
+                .fixedSize()
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(rarityDisplayOrder, id: \.self) { r in
@@ -1445,8 +1445,10 @@ private struct DexGridView: View {
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
-            .fixedSize(horizontal: false, vertical: true)
+            // 폭이 남으면 집계를 오른쪽 끝에 붙인다(넘치면 지금처럼 가로 스크롤, 시작 위치는 그대로).
+            .defaultScrollAnchor(.trailing, for: .alignment)
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func grid(_ slice: [CompanionStore.DexSpecies]) -> some View {
