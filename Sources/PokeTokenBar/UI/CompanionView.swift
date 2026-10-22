@@ -422,8 +422,7 @@ struct EvoLineView: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)
                     .frame(width: 16, height: 16)
-                    .background(.regularMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
+                    .glassEffect(.regular.interactive(), in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(forward ? L(language).evolutionScrollNext : L(language).evolutionScrollPrevious)
@@ -1047,7 +1046,7 @@ struct CollectionView: View {
     }
 
     private var filterToolbar: some View {
-        HStack(spacing: 6) {
+        GlassEffectContainer(spacing: 6) { HStack(spacing: 6) {
             HStack(spacing: 4) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -1069,12 +1068,7 @@ struct CollectionView: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
-            )
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 6))
 
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -1087,12 +1081,8 @@ struct CollectionView: View {
                     .frame(width: 16, height: 16)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
-                    .background(shinyOnly ? Color.yellow.opacity(0.18) : Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(shinyOnly ? Color.yellow.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 0.5)
-                    )
+                    .glassEffect(shinyOnly ? .regular.tint(.yellow.opacity(0.25)).interactive() : .regular.interactive(),
+                                 in: RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
             .help(store.l.filterShinyOnly)
@@ -1132,18 +1122,14 @@ struct CollectionView: View {
                     .foregroundStyle(isCustomSortActive ? Color.accentColor : Color.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
-                    .background(isCustomSortActive ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(isCustomSortActive ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.2), lineWidth: 0.5)
-                    )
+                    .glassEffect(isCustomSortActive ? .regular.tint(.accentColor.opacity(0.2)).interactive() : .regular.interactive(),
+                                 in: RoundedRectangle(cornerRadius: 6))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help(store.l.sortTitle)
             .accessibilityLabel(store.l.sortTitle)
-        }
+        } }
     }
 
     /// 포획 로그 — 개체 단위 기록. 필터(요약 헤더)는 고정, 목록만 스크롤한다
@@ -1215,7 +1201,7 @@ struct CollectionView: View {
                     resetFilters()
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .controlSize(.small)
             Spacer()
         }
@@ -1255,7 +1241,7 @@ struct RepresentativeFooterButton: View {
         .labelStyle(.iconOnly)
         .help(title)
         .accessibilityLabel(title)
-        .buttonStyle(.bordered)
+        .buttonStyle(.glass)
         .controlSize(.mini)
         .fixedSize()
     }
@@ -1457,7 +1443,7 @@ private struct DexGridView: View {
                     onResetFilters()
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .controlSize(.small)
             Spacer()
         }

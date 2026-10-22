@@ -124,7 +124,7 @@ private struct ShopItemCard: View {
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
                 Button(selectedQuantity > 1 ? "\(l.buy) ×\(selectedQuantity)" : l.buy) { buyNow() }
-                    .buttonStyle(.borderedProminent).controlSize(.small)
+                    .buttonStyle(.glassProminent).controlSize(.small)
                 Button(l.cancel) { confirming = false }
                     .buttonStyle(.borderless).controlSize(.small)
             }
@@ -136,7 +136,7 @@ private struct ShopItemCard: View {
                 Spacer()
                 if store.canBuy(kind) {
                     Button(l.buy) { confirming = true }
-                        .buttonStyle(.bordered).controlSize(.small)
+                        .buttonStyle(.glass).controlSize(.small)
                 } else {
                     Text(l.notEnoughTokens)
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -218,10 +218,10 @@ private struct EggCard: View {
                         // 알 상태 — 리롤 대상이 없어 구매만 막는다(canBuyEgg 게이트). 항목을 숨기는 대신
                         // 비활성 버튼으로 "상점에 있긴 하다"를 보이고, 사유는 아래 한 줄로.
                         Button(l.buy) {}
-                            .buttonStyle(.bordered).controlSize(.small).disabled(true)
+                            .buttonStyle(.glass).controlSize(.small).disabled(true)
                     } else if store.canBuyEgg(tier) {
                         Button(l.buy) { stage = .confirm }
-                            .buttonStyle(.bordered).controlSize(.small)
+                            .buttonStyle(.glass).controlSize(.small)
                     } else {
                         Text(l.notEnoughTokens).font(.caption2).foregroundStyle(.tertiary)
                     }
@@ -241,7 +241,7 @@ private struct EggCard: View {
                 Button(l.buy) {
                     if store.isHighValueCompanion { stage = .preciousConfirm } else { commit() }
                 }
-                .buttonStyle(.borderedProminent).controlSize(.small)
+                .buttonStyle(.glassProminent).controlSize(.small)
                 Button(l.cancel) { stage = .idle }
                     .buttonStyle(.borderless).controlSize(.small)
             }
@@ -251,7 +251,7 @@ private struct EggCard: View {
                     .font(.caption2.weight(.semibold)).foregroundStyle(.orange).lineLimit(2)
                 Spacer()
                 Button(store.currentIsShiny && store.rarity != .legendary ? l.freshEggDiscardShiny : l.freshEggDiscardValuable) { commit() }
-                    .buttonStyle(.borderedProminent).controlSize(.small).tint(.orange)
+                    .buttonStyle(.glassProminent).controlSize(.small).tint(.orange)
                 Button(l.cancel) { stage = .idle }
                     .buttonStyle(.borderless).controlSize(.small)
             }

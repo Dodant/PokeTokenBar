@@ -30,7 +30,7 @@ struct BagView: View {
             Text(store.l.bagEmptyTitle)
                 .font(.callout.weight(.semibold))
             Button(store.l.shop) { nav.tab = .shop }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .controlSize(.small)
         }
         .frame(maxWidth: .infinity)
@@ -141,7 +141,7 @@ private struct ItemCard: View {
                         .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                     Spacer()
                     Button(kind == .rareCandy ? "\(l.use) ×\(selectedCandyCount)" : l.use) { useNow() }
-                        .buttonStyle(.borderedProminent).controlSize(.small)
+                        .buttonStyle(.glassProminent).controlSize(.small)
                     Button(l.cancel) { confirming = false }
                         .buttonStyle(.borderless).controlSize(.small)
                 }
@@ -151,7 +151,7 @@ private struct ItemCard: View {
                         .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
                     Spacer()
                     Button(l.useItem) { confirming = true }
-                        .buttonStyle(.bordered).controlSize(.small)
+                        .buttonStyle(.glass).controlSize(.small)
                 }
             }
         } else {

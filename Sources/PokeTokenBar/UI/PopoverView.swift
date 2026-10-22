@@ -540,7 +540,7 @@ struct PopoverView: View {
             Button(l.retry) {
                 Task { await store.refreshAntigravityLimitsFromKeychain() }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.mini)
             .padding(.top, 2)
         }
@@ -1599,27 +1599,30 @@ struct CapsuleTabBar: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(items) { item in
-                    let isSelected = item.id == selectedID
-                    Button { onSelect(item.id) } label: {
-                        HStack(spacing: 4) {
-                            if item.marked {
-                                Circle().frame(width: 5, height: 5)
+            GlassEffectContainer(spacing: 6) {
+                HStack(spacing: 6) {
+                    ForEach(items) { item in
+                        let isSelected = item.id == selectedID
+                        Button { onSelect(item.id) } label: {
+                            HStack(spacing: 4) {
+                                if item.marked {
+                                    Circle().frame(width: 5, height: 5)
+                                }
+                                Text(item.title)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
                             }
-                            Text(item.title)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
+                            .font(.caption.weight(isSelected ? .semibold : .regular))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                            .glassEffect(isSelected ? .regular.tint(.accentColor.opacity(0.25)).interactive()
+                                                    : .regular.interactive(),
+                                         in: Capsule())
                         }
-                        .font(.caption.weight(isSelected ? .semibold : .regular))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(isSelected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.08))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
+                        .help(item.help ?? "")
                     }
-                    .buttonStyle(.plain)
-                    .help(item.help ?? "")
                 }
             }
         }
