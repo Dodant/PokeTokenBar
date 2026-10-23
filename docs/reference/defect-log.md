@@ -1029,6 +1029,19 @@ read_when:
   9 999.6/9 999.4). 수정 전 코드로 5건 실패 확인. 스윕: `L.difficultyValue` 도 같은 모양이지만
   `snapDifficulty` 가 유효숫자 2자리로 스냅해 경계 넘는 입력이 존재하지 않아 손대지 않았다.
 
+- **SwiftUI 컨트롤 검사를 AppKit 백킹 클래스 개수에 걸지 않는다.** macOS 27.0.1 에서 `Picker(.menu)` 와
+  `Slider` 는 더 이상 `NSPopUpButton`/`NSSlider` 를 만들지 않는다(빈 호스트에 둘만 띄워 확인). 그래서
+  `IndividualPickerRenderingTests`(팝업 0개)와 `SessionKeySettingsRenderingTests`(슬라이더 0개)가 앱 변경 없이
+  실패했다. **왜 못 걸렀나:** 테스트가 "컨트롤이 보이는가"가 아니라 "그 컨트롤을 그리는 AppKit 클래스가 있는가"를
+  봤고, 그 구현 세부는 OS 가 바꾼다. 접근성 트리는 AX 클라이언트 없이는 비어 있어 대안이 못 된다.
+  → 개체 선택기 테스트는 렌더 텍스트(Vision)로 선택기 라벨("#1 · … · Lv.")의 유무를 본다. 항상/절대 표시로
+  바꿔 넣으면 각각 실패함을 확인했다. **스윕:** `NSSegmentedControl`·`NSButton`·`NSSecureTextField` 를 세는
+  테스트는 macOS 27 에서도 통과한다. `SessionKeySettingsRenderingTests` 의 슬라이더 개수는 텍스트 판독도
+  안 된다 — grouped `Form` 은 `cacheDisplay` 비트맵에 그려지지 않아 "Back" 외엔 읽히지 않는다. 그래서 그 검사가
+  지키던 "설정 병합 후에도 난이도 섹션이 남는다"를 구성으로 본다: `String(reflecting: SettingsView.Body.self)` 에
+  `DifficultySettingsSection` 이 있는가(불투명 타입도 실제 타입으로 풀린다). 섹션 줄을 `EmptyView()` 로 바꾸면
+  실패함을 확인했다. 한계: 절대 안 타는 분기 안에 있어도 통과한다 — 렌더 여부가 아니라 구성 여부만 본다.
+
 - **아이콘만 있는 `.plain` 버튼은 히트 영역을 명시한다(#379).** `.plain` 버튼은 라벨 프레임만 클릭되므로
   `Image(systemName:)` 하나를 라벨로 쓰면 글리프 크기(도감 셰브론은 약 7×12pt)가 곧 클릭 영역이라 자주
   빗나갔다. 라벨에 `.frame(width:height:)` + `.contentShape(Rectangle())` 로 최소 24~28pt 를 준다 —

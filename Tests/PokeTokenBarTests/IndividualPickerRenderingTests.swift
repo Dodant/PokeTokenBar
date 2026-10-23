@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Vision
 import XCTest
 @testable import PokeTokenBar
 
@@ -49,10 +50,18 @@ final class IndividualPickerRenderingTests: XCTestCase {
             window.orderFront(nil)
             try await Task.sleep(for: .milliseconds(100))
             host.layoutSubtreeIfNeeded()
-            func descendants(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(descendants) }
-            let menus = descendants(host).compactMap { $0 as? NSPopUpButton }
-            XCTAssertEqual(menus.count, count == 1 ? 0 : 1)
-            if count == 2 { XCTAssertEqual(menus.first?.numberOfItems, 2) }
+            // Read the rendered text, not the AppKit view tree: since macOS 27 a SwiftUI menu Picker is no
+            // longer backed by NSPopUpButton. The picker's label is the selected individual's "#1 · … · Lv. 5 · …"
+            // line, which nothing else on the page shows.
+            let rendered = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: rendered)
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["en-US"]
+            try VNImageRequestHandler(cgImage: XCTUnwrap(rendered.cgImage)).perform([request])
+            let lines = request.results?.map { $0.topCandidates(5).map(\.string) } ?? []
+            let pickerShown = lines.contains { $0.contains { $0.contains("#1") && $0.contains("Lv") } }
+            XCTAssertEqual(pickerShown, count > 1, "individual selector with \(count) individual(s). Seen: \(lines.map(\.first))")
             if let output = ProcessInfo.processInfo.environment["PTB_PICKER_RENDER_DIR"] {
                 // Capture only the selector/profile area; no sprite or user save data is included.
                 let captureBounds = NSRect(x: 0, y: 140, width: PopoverMetrics.contentWidth, height: 370)
