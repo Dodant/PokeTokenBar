@@ -22,16 +22,18 @@ final class DexBackNavigationTests: XCTestCase {
         window = nil
     }
 
-    /// 40 single-species families = 40 grid rows (one family per row); Mon38 needs scrolling.
+    /// 37 single-species families + #38–#40 = 38 grid rows (one family per row); the last row needs scrolling.
     private func makeStore() throws -> CompanionStore {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("dex-back-\(UUID()).json")
         addTeardownBlock { try? FileManager.default.removeItem(at: file) }
         var state = CompanionState()
         state.language = .en
-        state.dex = (1...40).map { id in
-            DexEntry(id: "entry-\(id)", baseID: id, finalID: id, chainOrder: [id], rarity: .common,
-                     caughtAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(id)),
-                     names: [id: ["en": "Mon\(id)"]])
+        // #38→#39→#40 is one family, so #39 sits second in its grid row.
+        state.dex = (1...38).map { id in
+            let chain = id == 38 ? [38, 39, 40] : [id]
+            return DexEntry(id: "entry-\(id)", baseID: id, finalID: chain.last!, chainOrder: chain, rarity: .common,
+                            caughtAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(id)),
+                            names: Dictionary(uniqueKeysWithValues: chain.map { ($0, ["en": "Mon\($0)"]) }))
         }
         try JSONEncoder().encode(state).write(to: file)
         return CompanionStore(provider: OfflineProvider(), fileURL: file)
@@ -143,10 +145,10 @@ final class DexBackNavigationTests: XCTestCase {
         XCTFail("Pressing \(text) never changed the screen", file: file, line: line)
     }
 
-    /// Opens #38 (scrolled off) the way Home's sprite does, then presses the detail page's Back.
+    /// Opens #39 (scrolled off, not first in its row) the way Home's sprite does, then presses Back.
     private func openScrolledOffSpeciesAndGoBack(_ store: CompanionStore, _ navigation: PopoverNavigation,
                                              _ host: NSView) async throws {
-        let species = try XCTUnwrap(store.dexSpecies.first { $0.id == 38 })
+        let species = try XCTUnwrap(store.dexSpecies.first { $0.id == 39 })
         navigation.dexDetailCollectionID = species.collectionID
         try await press(store.l.back, in: host)
     }
@@ -162,10 +164,10 @@ final class DexBackNavigationTests: XCTestCase {
 
         try await openScrolledOffSpeciesAndGoBack(store, navigation, root)
 
-        try await waitForText("Mon38", in: root)
+        try await waitForText("Mon39", in: root)
         // Only the position comes back: the species is not selected, so the footer does not name it.
         let footer = try words(in: root).filter { $0.box.midY < 0.05 }   // y-up: the bottom strip
-        XCTAssertFalse(footer.contains { $0.reads("Mon38", exactly: false) }, "Seen: \(footer.map(\.candidates))")
+        XCTAssertFalse(footer.contains { $0.reads("Mon39", exactly: false) }, "Seen: \(footer.map(\.candidates))")
     }
 
     func testReturnAnchorIsUsedOnlyOnce() async throws {
@@ -174,7 +176,7 @@ final class DexBackNavigationTests: XCTestCase {
         navigation.tab = .collection
         let root = host(store, navigation)
         try await openScrolledOffSpeciesAndGoBack(store, navigation, root)
-        try await waitForText("Mon38", in: root)
+        try await waitForText("Mon39", in: root)
 
         navigation.showingCollectionLog = true
         try await Task.sleep(for: .milliseconds(100))

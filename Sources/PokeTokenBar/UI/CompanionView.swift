@@ -1142,8 +1142,10 @@ struct CollectionView: View {
                     .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
                         if let logSettleAnchor { logPosition.scrollTo(id: logSettleAnchor, anchor: .center) }
                     }
+                    // Any user scroll (drag, wheel, momentum) ends the settle; the programmatic scrolls are
+                    // unanimated and stay idle.
                     .onScrollPhaseChange { _, phase in
-                        if phase == .interacting { logSettleAnchor = nil }
+                        if phase != .idle { logSettleAnchor = nil }
                     }
                     // The position lives in this view, which outlives the log; a later visit starts at the top.
                     .onDisappear {
@@ -1370,7 +1372,6 @@ private struct DexGridView: View {
                                         onSelectSpecies(sp)
                                     }
                                     .frame(maxWidth: .infinity)
-                                    .id(sp.collectionID)
                                 } else {
                                     Color.clear.frame(maxWidth: .infinity)
                                 }
@@ -1385,15 +1386,18 @@ private struct DexGridView: View {
             .task {
                 guard let anchor = returnAnchor else { return }
                 returnAnchor = nil
-                settleAnchor = anchor
-                position.scrollTo(id: anchor, anchor: .center)
+                // Only rows are identified in the lazy stack — a cell's own `.id` is unknown until its
+                // row is built — so scroll to the row holding the species.
+                guard let row = rows.first(where: { $0.contains { $0.collectionID == anchor } }) else { return }
+                settleAnchor = row[0].collectionID
+                position.scrollTo(id: row[0].collectionID, anchor: .center)
             }
             // Same settle as the catch log: re-scroll as the lazy rows the first pass revealed get measured.
             .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
                 if let settleAnchor { position.scrollTo(id: settleAnchor, anchor: .center) }
             }
             .onScrollPhaseChange { _, phase in
-                if phase == .interacting { settleAnchor = nil }
+                if phase != .idle { settleAnchor = nil }
             }
             // 필터·검색·정렬 변경 시 새 결과를 처음부터 보여준다.
             .onChange(of: searchText) { scrollToTop(proxy) }

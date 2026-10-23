@@ -91,7 +91,6 @@ final class DexSearchAndFilterTests: XCTestCase {
         }
     }
 
-    /// An egg has no species, so the Home header sprite gets no link target.
     /// Each evolution family starts its own grid row and wraps past `columns`. Eevee's branches share
     /// one family, so #196/#197 follow #136 ahead of #150 even though number order puts #150 first.
     func testDexFamilyRowsBreakPerFamilyAndWrap() {
@@ -107,6 +106,7 @@ final class DexSearchAndFilterTests: XCTestCase {
         XCTAssertEqual(rows, [[1, 2, 3], [4, 5], [25, 26], [133, 134, 135, 136], [196, 197], [150]])
     }
 
+    /// An egg has no species, so the Home header sprite gets no link target.
     func testEggHasNoDexLinkTarget() {
         let store = makeStore(dex: createTestStore().state.dex)
         XCTAssertTrue(store.isEgg)
