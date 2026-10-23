@@ -46,9 +46,12 @@ final class SessionKeySettingsRenderingTests: XCTestCase {
             XCTAssertNotNil(secure.currentEditor(), "session key entry must receive keyboard focus")
             XCTAssertTrue(secure.currentEditor() === window.firstResponder)
         }
-        // Two difficulty sliders plus the existing size/opacity sliders.
-        XCTAssertEqual(views.compactMap { $0 as? NSSlider }.count, 4,
-                                    "growth and shop difficulty controls must survive the Settings merge")
+        // Since macOS 27 a SwiftUI Slider has no NSSlider behind it, and the grouped Form does not draw into
+        // a cached bitmap, so neither the view tree nor rendered text can count the controls. Check the
+        // composition instead: Settings' static body type names every view it builds (opaque types resolve).
+        XCTAssertTrue(String(reflecting: SettingsView.Body.self).contains("DifficultySettingsSection"),
+                      "growth and shop difficulty controls must survive the Settings merge")
+        XCTAssertTrue(String(reflecting: DifficultySettingsSection.Body.self).contains("SwiftUI.Slider"))
         XCTAssertTrue(navigation.showSettings)
         navigation.reset()
         XCTAssertFalse(navigation.expandAdvancedOnOpen)
