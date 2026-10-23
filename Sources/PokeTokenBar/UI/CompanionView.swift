@@ -1352,9 +1352,7 @@ private struct DexGridView: View {
     }
 
     private func grid(_ rows: [[CompanionStore.DexSpecies]]) -> some View {
-        let formCounts = Dictionary(uniqueKeysWithValues: rows.joined().lazy
-            .filter { PokemonForm.hasForms(speciesID: $0.id) }
-            .map { ($0.id, store.state.collectedForms(speciesID: $0.id).count) })
+        let formCounts = store.dexCollectedFormCounts
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: Self.spacing) {

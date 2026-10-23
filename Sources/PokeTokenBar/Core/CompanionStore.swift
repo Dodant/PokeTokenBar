@@ -7,9 +7,9 @@ import UserNotifications
 @MainActor
 @Observable
 final class CompanionStore {
-    private(set) var state = CompanionState()
+    private(set) var state = CompanionState() { didSet { dexCache = nil } }
     private(set) var displayState: CompanionStateKind = .egg
-    private(set) var currentLine: EvoLine?
+    private(set) var currentLine: EvoLine? { didSet { dexCache = nil } }
     private(set) var representativeSubject = RepresentativeSubject(speciesID: nil, isShiny: false)
     private(set) var isHatching = false
     private var isRevealingDitto = false   // 메타몽 리빌 비동기 중복 방지(isHatching 자매)
@@ -449,9 +449,40 @@ final class CompanionStore {
     /// 포함 종 = 졸업분 `chainOrder` ∪ 현재 개체의 **도달분** `pathIDs[0...stageIndex]`.
     /// `plannedPathIDs`(사전 선택된 전체 경로)는 미도달 단계를 포함하므로 절대 쓰지 않는다 — 쓰면
     /// 아직 진화하지 않은 종이 보유로 잡힌다.
-    var dexSpecies: [DexSpecies] {
-        collectedDexSpecies(groupForms: false)
+    var dexSpecies: [DexSpecies] { dexIndex.species }
+
+    /// 도감 격자가 body 마다 읽는 파생값 묶음. 입력은 `state`·`currentLine` 뿐이라 둘의 `didSet` 이 비운다.
+    private struct DexCache {
+        let species: [DexSpecies]
+        let familyIDs: [Int: Int]
+        let formCounts: [Int: Int]
     }
+    @ObservationIgnored private var dexCache: DexCache?
+
+    private var dexIndex: DexCache {
+        // 캐시 적중에도 두 입력을 읽어 관찰 등록을 남긴다 — 안 읽으면 뷰가 다음 변경을 놓친다.
+        let state = state
+        _ = currentLine
+        if let dexCache { return dexCache }
+        let species = collectedDexSpecies(groupForms: false)
+        let chains = state.dex.map(\.chainOrder) + (state.active.map { [$0.pathIDs] } ?? [])
+        var families: [Int: Int] = [:]
+        for chain in chains {
+            guard let root = chain.first else { continue }
+            for id in chain { families[id] = root }
+        }
+        let cache = DexCache(
+            species: species,
+            familyIDs: families,
+            formCounts: Dictionary(uniqueKeysWithValues: species.lazy
+                .filter { PokemonForm.hasForms(speciesID: $0.id) }
+                .map { ($0.id, state.collectedForms(speciesID: $0.id).count) }))
+        dexCache = cache
+        return cache
+    }
+
+    /// 폼이 있는 보유 종 → 수집한 폼 수. 도감 칸의 "n/m" 표시.
+    var dexCollectedFormCounts: [Int: Int] { dexIndex.formCounts }
 
     /// Sprite → Pokédex detail link targets (species number → dex cell `collectionID`). Only species
     /// in the dex have a key, so eggs, unreached evolutions and uncaught species are not clickable.
@@ -461,22 +492,11 @@ final class CompanionStore {
         dexSpecies.reduce(into: [:]) { links, species in links[species.id] = species.collectionID }
     }
 
-    /// speciesID → 진화 가족(체인 첫 종 id).
-    /// 체인은 PokéAPI 진화 트리의 뿌리에서 시작하므로, 갈래 진화(이브이 등)도 같은 첫 종으로 묶인다.
-    private var dexFamilyIDs: [Int: Int] {
-        let chains = state.dex.map(\.chainOrder) + (state.active.map { [$0.pathIDs] } ?? [])
-        var families: [Int: Int] = [:]
-        for chain in chains {
-            guard let root = chain.first else { continue }
-            for id in chain { families[id] = root }
-        }
-        return families
-    }
-
     /// 도감 격자의 줄 — 진화 가족마다 새 줄에서 시작하고, 한 줄(`columns`)을 넘는 가족은 다음 줄로
-    /// 이어 접는다. 가족은 그 가족의 첫 종이 정렬상 나온 자리에 놓인다.
+    /// 이어 접는다. 가족은 그 가족의 첫 종이 정렬상 나온 자리에 놓인다. 가족은 체인 첫 종 id —
+    /// 체인은 PokéAPI 진화 트리 뿌리에서 시작하므로 갈래 진화(이브이 등)도 한 가족이다.
     func dexFamilyRows(_ species: [DexSpecies], columns: Int) -> [[DexSpecies]] {
-        let families = dexFamilyIDs
+        let families = dexIndex.familyIDs
         var groups: [[DexSpecies]] = []
         var groupIndex: [Int: Int] = [:]
         for sp in species {

@@ -1,4 +1,5 @@
 import XCTest
+import Observation
 @testable import PokeTokenBar
 
 private struct MockPokeProvider: PokeProviding {
@@ -104,6 +105,21 @@ final class DexSearchAndFilterTests: XCTestCase {
 
         let rows = store.dexFamilyRows(store.filteredDexSpecies(), columns: 4).map { $0.map(\.id) }
         XCTAssertEqual(rows, [[1, 2, 3], [4, 5], [25, 26], [133, 134, 135, 136], [196, 197], [150]])
+    }
+
+    /// The dex lists are cached; a state change must drop the cache, and a cache hit must still
+    /// register observation, or the grid would keep showing the old list.
+    func testDexCacheInvalidatesAndStillNotifiesObservers() {
+        let store = makeStore(dex: createTestStore().state.dex)
+        XCTAssertEqual(store.dexSpecies.first?.name, "Bulbasaur")
+        _ = store.dexSpecies   // now served from the cache
+
+        nonisolated(unsafe) var notified = false   // onChange fires synchronously on this thread
+        withObservationTracking { _ = store.dexSpecies } onChange: { notified = true }
+        store.setLanguage(.ko)
+
+        XCTAssertTrue(notified, "a cache hit must still track state")
+        XCTAssertEqual(store.dexSpecies.first?.name, "이상해씨")
     }
 
     /// An egg has no species, so the Home header sprite gets no link target.
